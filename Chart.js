@@ -1,4 +1,3 @@
-
 // Chart.js
 // Regel 6 & 7: Vollständiger Inhalt & Saubere Formatierung
 

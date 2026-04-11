@@ -1,4 +1,3 @@
-
 // App.js
 // Regel 0: Absolute Transparenz - Integration des Security-Checks
 // Regel 6: Vollständiger Dateiinhalt

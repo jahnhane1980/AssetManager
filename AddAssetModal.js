@@ -1,4 +1,3 @@
-                               
 // AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Präzises Parsing durch provider-spezifische Schlagwörter

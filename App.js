@@ -1,244 +1,175 @@
-// AddAssetModal.js
-// Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Präzises Parsing durch provider-spezifische Schlagwörter
 
-import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  Modal, 
-  TouchableOpacity, 
-  TextInput, 
-  ScrollView, 
-  KeyboardAvoidingView, 
-  Platform, 
-  Image, 
-  ActivityIndicator 
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+// App.js
+// Regel 0: Absolute Transparenz - Integration des Security-Checks
+// Regel 6: Vollständiger Dateiinhalt
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as SQLite from 'expo-sqlite';
 import { Theme } from './Theme';
+import { Security } from './Security';
+import AddAssetModal from './AddAssetModal';
+import Chart from './Chart';
 
-let MlkitOcr = null;
-try {
-  MlkitOcr = require('expo-mlkit-ocr').default;
-} catch (e) {
-  console.log("OCR-Bibliothek im Browser-Modus nicht verfügbar. Simulation aktiv.");
-}
+function MainContent() {
+  const insets = useSafeAreaInsets();
+  const [db, setDb] = useState(null);
+  const [masterKey, setMasterKey] = useState(null);
+  const [isReady, setIsReady] = useState(false);
+  
+  const [totalValue, setTotalValue] = useState(0);
+  const [performance, setPerformance] = useState({ nominal: 0, percent: 0 });
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [portfolios, setPortfolios] = useState([]);
+  const [chartData, setChartData] = useState([]);
+  const [activeFilter, setActiveFilter] = useState('ALL');
 
-const PROVIDERS = ['C24', 'Norisbank', 'Trading 212', 'Bitget', 'Timeless'];
+  useEffect(() => {
+    async function initApp() {
+      try {
+        // 1. Master-Key sicher laden/erzeugen
+        const key = await Security.getOrCreateMasterKey();
+        setMasterKey(key);
 
-export default function AddAssetModal({ visible, onClose, onSave }) {
-  const [step, setStep] = useState(1); 
-  const [selectedProvider, setSelectedProvider] = useState(null);
-  const [inputValue, setInputValue] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
-
-  const resetAndClose = () => {
-    setStep(1);
-    setSelectedProvider(null);
-    setInputValue('');
-    setSelectedImage(null);
-    setIsProcessing(false);
-    onClose();
-  };
-
-  const handlePickImage = async () => {
-    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!granted) {
-      alert("Zugriff auf Galerie verweigert.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
-      processImage(result.assets[0].uri);
-    }
-  };
-
-  const processImage = async (uri) => {
-    setIsProcessing(true);
-    setStep(4);
-    
-    try {
-      if (MlkitOcr) {
-        const result = await MlkitOcr.detectFromUri(uri);
-        const fullText = result.map(block => block.text).join(' ');
-        const detected = parseValue(fullText, selectedProvider);
-        setInputValue(detected || '');
-      } else {
-        setTimeout(() => {
-          let mockValue = '0,00';
-          if (selectedProvider === 'C24') mockValue = '1.240,61';
-          if (selectedProvider === 'Norisbank') mockValue = '198,51';
-          if (selectedProvider === 'Trading 212') mockValue = '78.884,37';
-          if (selectedProvider === 'Timeless') mockValue = '526,06';
-          
-          setInputValue(mockValue);
-          setIsProcessing(false);
-        }, 1500);
-        return;
+        // 2. Datenbank öffnen
+        const database = await SQLite.openDatabaseAsync('assets.db');
+        setDb(database);
+        
+        await database.execAsync(
+          "CREATE TABLE IF NOT EXISTS snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, provider TEXT, value REAL, is_manual INTEGER, timestamp INTEGER);"
+        );
+        
+        setIsReady(true);
+      } catch (error) {
+        console.error("Initialisierungsfehler:", error);
       }
+    }
+    initApp();
+  }, []);
+
+  const refreshData = useCallback(async () => {
+    if (!db || !isReady) return;
+
+    try {
+      const totalResult = await db.getAllAsync(
+        "SELECT SUM(value) as total FROM (SELECT value FROM snapshots GROUP BY provider ORDER BY timestamp DESC);"
+      );
+      setTotalValue(totalResult[0]?.total || 0);
+
+      let timeLimit = 0;
+      const now = Date.now();
+      if (activeFilter === '3M') timeLimit = now - 90 * 24 * 60 * 60 * 1000;
+      else if (activeFilter === '6M') timeLimit = now - 180 * 24 * 60 * 60 * 1000;
+      else if (activeFilter === '1Y') timeLimit = now - 365 * 24 * 60 * 60 * 1000;
+
+      const historyResult = await db.getAllAsync(
+        "SELECT timestamp, SUM(value) as value FROM snapshots WHERE timestamp > ? GROUP BY timestamp ORDER BY timestamp ASC;",
+        [timeLimit]
+      );
+      setChartData(historyResult);
+
+      if (historyResult.length >= 2) {
+        const first = historyResult[0].value;
+        const last = historyResult[historyResult.length - 1].value;
+        setPerformance({ nominal: last - first, percent: ((last - first) / first) * 100 });
+      }
+
+      const portfolioResult = await db.getAllAsync(
+        "SELECT provider, value FROM snapshots GROUP BY provider ORDER BY timestamp DESC;"
+      );
+      setPortfolios(portfolioResult);
     } catch (error) {
-      console.error("OCR Fehler:", error);
-      setInputValue('');
-    } finally {
-      setIsProcessing(false);
+      console.error("Fehler beim Laden:", error);
     }
+  }, [db, isReady, activeFilter]);
+
+  useEffect(() => { refreshData(); }, [refreshData]);
+
+  const handleSaveAsset = async (provider, value, isManual) => {
+    if (!db) return;
+    // Hier könnte Security.encryptValue(value, masterKey) genutzt werden
+    await db.runAsync(
+      "INSERT INTO snapshots (provider, value, is_manual, timestamp) VALUES (?, ?, ?, ?);",
+      [provider, value, isManual ? 1 : 0, Date.now()]
+    );
+    await refreshData();
   };
 
-  /**
-   * Regel: Spezifische Suche nach Beträgen basierend auf Anker-Texten
-   */
-  const parseValue = (text, provider) => {
-    const amountRegex = /\d{1,3}(\.\d{3})*,\d{2}/g;
-    const matches = text.match(amountRegex);
-    if (!matches) return null;
-
-    const normalizedText = text.toUpperCase();
-
-    // Suche nach dem Betrag, der am wahrscheinlichsten zum Anker gehört
-    switch (provider) {
-      case 'Trading 212':
-        if (normalizedText.includes('KONTOWERT')) return matches[0];
-        break;
-      case 'C24':
-        if (normalizedText.includes('SMARTKONTO')) return matches[0];
-        break;
-      case 'Norisbank':
-        if (normalizedText.includes('GESAMTSALDO')) return matches[0];
-        break;
-      case 'Timeless':
-        if (normalizedText.includes('ASSET')) return matches[0];
-        break;
-    }
-
-    // Fallback: Nimm den ersten gefundenen Betrag
-    return matches[0];
-  };
-
-  const handleSave = () => {
-    const sanitizedValue = inputValue.replace(/\./g, '').replace(',', '.');
-    const finalValue = parseFloat(sanitizedValue);
-    
-    if (isNaN(finalValue)) {
-      alert("Betrag konnte nicht korrekt interpretiert werden.");
-      return;
-    }
-    
-    onSave(selectedProvider, finalValue, step === 3);
-    resetAndClose();
-  };
+  if (!isReady) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Theme.colors.primary} />
+        <Text style={{ marginTop: 10 }}>Sicherer Start...</Text>
+      </View>
+    );
+  }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === "ios" ? "padding" : "height"} 
-          style={styles.modalContainer}
-        >
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>{selectedProvider || 'Hinzufügen'}</Text>
-            <TouchableOpacity onPress={resetAndClose}>
-              <Text style={styles.closeBtn}>Abbrechen</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            {step === 1 && (
-              <View>
-                <Text style={styles.label}>Wähle den Anbieter:</Text>
-                {PROVIDERS.map(p => (
-                  <TouchableOpacity 
-                    key={p} 
-                    style={styles.providerCard} 
-                    onPress={() => { setSelectedProvider(p); setStep(2); }}
-                  >
-                    <Text style={styles.providerText}>{p}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {step === 2 && (
-              <View>
-                <Text style={styles.label}>Eingabe für {selectedProvider}:</Text>
-                <TouchableOpacity style={styles.methodBtn} onPress={handlePickImage}>
-                  <Text style={styles.methodBtnText}>📸 Screenshot einlesen</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.methodBtn, styles.manualBtn]} onPress={() => setStep(3)}>
-                  <Text style={styles.methodBtnText}>⌨️ Manuelle Eingabe</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setStep(1)}>
-                  <Text style={styles.backBtn}>Zurück</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {(step === 3 || (step === 4 && !isProcessing)) && (
-              <View>
-                <Text style={styles.label}>
-                  {step === 4 ? "Gelesener Betrag (bitte prüfen):" : "Betrag eingeben:"}
-                </Text>
-                <TextInput 
-                  style={[styles.input, step === 4 && styles.reviewInput]}
-                  value={inputValue}
-                  onChangeText={setInputValue}
-                  keyboardType="numeric"
-                  placeholder="0,00"
-                  autoFocus={step === 3}
-                />
-                
-                {selectedImage && step === 4 && (
-                  <Image source={{ uri: selectedImage }} style={styles.previewImage} />
-                )}
-
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                  <Text style={styles.saveBtnText}>Bestätigen & Speichern</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {isProcessing && (
-              <View style={styles.loadingArea}>
-                <ActivityIndicator size="large" color={Theme.colors.primary} />
-                <Text style={styles.loadingText}>Suche Schlüsselwort...</Text>
-                {!MlkitOcr && <Text style={styles.mockHint}>(Simulation aktiv)</Text>}
-              </View>
-            )}
-          </ScrollView>
-        </KeyboardAvoidingView>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Gesamtvermögen</Text>
+        <Text style={styles.amount}>
+          {totalValue.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+        </Text>
+        <Text style={[styles.perfText, { color: performance.nominal >= 0 ? '#4CD964' : '#FF3B30' }]}>
+          {performance.nominal >= 0 ? '+' : ''}
+          {performance.nominal.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} ({performance.percent.toFixed(2)}%)
+        </Text>
       </View>
-    </Modal>
+
+      <ScrollView style={styles.content}>
+        <View style={styles.chartContainer}>
+          <Chart data={chartData} />
+          <View style={styles.filterRow}>
+            {['3M', '6M', '1Y', 'ALL'].map(f => (
+              <TouchableOpacity key={f} onPress={() => setActiveFilter(f)} style={[styles.filterBtn, activeFilter === f && styles.filterBtnActive]}>
+                <Text style={[styles.filterBtnText, activeFilter === f && styles.filterBtnTextActive]}>{f}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        <Text style={styles.subTitle}>Deine Portfolios</Text>
+        {portfolios.map((p, i) => (
+          <View key={i} style={styles.card}>
+            <View style={styles.row}>
+              <Text style={styles.providerName}>{p.provider}</Text>
+              <Text style={styles.providerValue}>{p.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</Text>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+        <Text style={styles.fabIcon}>+</Text>
+      </TouchableOpacity>
+
+      <AddAssetModal visible={isModalVisible} onClose={() => setModalVisible(false)} onSave={handleSaveAsset} />
+    </View>
   );
 }
 
+export default function App() { return (<SafeAreaProvider><MainContent /></SafeAreaProvider>); }
+
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Theme.colors.surface, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, minHeight: '50%', maxHeight: '90%' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: Theme.colors.text },
-  closeBtn: { color: Theme.colors.primary, fontWeight: '600' },
-  scrollContent: { padding: Theme.spacing.l },
-  label: { fontSize: 16, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m },
-  providerCard: { padding: Theme.spacing.m, borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.s, backgroundColor: Theme.colors.surface },
-  providerText: { fontSize: 16, fontWeight: '500', color: Theme.colors.text },
-  methodBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center', marginBottom: Theme.spacing.s },
-  manualBtn: { backgroundColor: Theme.colors.text },
-  methodBtnText: { color: Theme.colors.white, fontSize: 16, fontWeight: '600' },
-  backBtn: { textAlign: 'center', color: Theme.colors.textSecondary, marginTop: Theme.spacing.m },
-  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: 32, textAlign: 'center', marginBottom: Theme.spacing.l, color: Theme.colors.text },
-  reviewInput: { borderColor: Theme.colors.primary, color: Theme.colors.primary, fontWeight: 'bold' },
-  saveBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
-  saveBtnText: { color: Theme.colors.white, fontSize: 18, fontWeight: 'bold' },
-  loadingArea: { padding: 40, alignItems: 'center' },
-  loadingText: { marginTop: 10, color: Theme.colors.textSecondary },
-  mockHint: { fontSize: 10, color: Theme.colors.placeholder, marginTop: 5 },
-  previewImage: { width: '100%', height: 200, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.l, resizeMode: 'contain' }
+  container: { flex: 1, backgroundColor: Theme.colors.background },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { padding: Theme.spacing.l, backgroundColor: Theme.colors.surface, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
+  title: { fontSize: 14, color: Theme.colors.textSecondary },
+  amount: { fontSize: 32, fontWeight: 'bold', color: Theme.colors.text },
+  perfText: { fontSize: 16, fontWeight: '600', marginTop: 5 },
+  content: { flex: 1, padding: Theme.spacing.m },
+  chartContainer: { backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, paddingVertical: Theme.spacing.m, marginBottom: Theme.spacing.l, elevation: 2 },
+  filterRow: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 },
+  filterBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20 },
+  filterBtnActive: { backgroundColor: Theme.colors.primary },
+  filterBtnText: { color: Theme.colors.textSecondary, fontWeight: '600' },
+  filterBtnTextActive: { color: Theme.colors.white },
+  subTitle: { fontSize: 18, fontWeight: '600', marginBottom: Theme.spacing.s, color: Theme.colors.text },
+  card: { backgroundColor: Theme.colors.surface, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.s, elevation: 1 },
+  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  providerName: { fontSize: 16, fontWeight: '500' },
+  providerValue: { fontSize: 16, fontWeight: 'bold' },
+  fab: { position: 'absolute', right: 25, bottom: 25, backgroundColor: Theme.colors.primary, width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 5 },
+  fabIcon: { color: Theme.colors.white, fontSize: 30 },
 });

@@ -18,7 +18,8 @@
     "react-native-svg": "15.12.1",
     "expo-image-picker": "~17.0.10",
     "expo-crypto": "~15.0.8",
-    "expo-clipboard": "~8.0.8"
+    "expo-clipboard": "~8.0.8",
+    "tesseract.js": "*"
   },
   "private": true
 }

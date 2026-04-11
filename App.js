@@ -1,5 +1,5 @@
-// App.js
-// Regel 0: Absolute Transparenz - Integration des Security-Checks
+// Chart.js (Main Application Logic)
+// Regel 0: Absolute Transparenz - Snapshot-Logik & Daily History
 // Regel 6: Vollständiger Dateiinhalt
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -14,7 +14,6 @@ import Chart from './Chart';
 function MainContent() {
   const insets = useSafeAreaInsets();
   const [db, setDb] = useState(null);
-  const [masterKey, setMasterKey] = useState(null);
   const [isReady, setIsReady] = useState(false);
   
   const [totalValue, setTotalValue] = useState(0);
@@ -27,17 +26,22 @@ function MainContent() {
   useEffect(() => {
     async function initApp() {
       try {
-        // 1. Master-Key sicher laden/erzeugen
-        const key = await Security.getOrCreateMasterKey();
-        setMasterKey(key);
-
-        // 2. Datenbank öffnen
+        await Security.getOrCreateMasterKey();
         const database = await SQLite.openDatabaseAsync('assets.db');
         setDb(database);
         
-        await database.execAsync(
-          "CREATE TABLE IF NOT EXISTS snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, provider TEXT, value REAL, is_manual INTEGER, timestamp INTEGER);"
-        );
+        // Regel: Provider ist Primary Key -> Überschreibt alten Stand automatisch
+        await database.execAsync(`
+          CREATE TABLE IF NOT EXISTS snapshots (
+            provider TEXT PRIMARY KEY, 
+            value REAL, 
+            timestamp INTEGER
+          );
+          CREATE TABLE IF NOT EXISTS daily_history (
+            date TEXT PRIMARY KEY, 
+            total_value REAL
+          );
+        `);
         
         setIsReady(true);
       } catch (error) {
@@ -51,33 +55,40 @@ function MainContent() {
     if (!db || !isReady) return;
 
     try {
-      const totalResult = await db.getAllAsync(
-        "SELECT SUM(value) as total FROM (SELECT value FROM snapshots GROUP BY provider ORDER BY timestamp DESC);"
-      );
-      setTotalValue(totalResult[0]?.total || 0);
+      // 1. Aktuelle Portfolioliste (Snapshot)
+      const currentSnapshots = await db.getAllAsync("SELECT provider, value FROM snapshots ORDER BY provider ASC;");
+      const currentTotal = currentSnapshots.reduce((sum, s) => sum + s.value, 0);
+      setTotalValue(currentTotal);
+      setPortfolios(currentSnapshots);
 
-      let timeLimit = 0;
-      const now = Date.now();
-      if (activeFilter === '3M') timeLimit = now - 90 * 24 * 60 * 60 * 1000;
-      else if (activeFilter === '6M') timeLimit = now - 180 * 24 * 60 * 60 * 1000;
-      else if (activeFilter === '1Y') timeLimit = now - 365 * 24 * 60 * 60 * 1000;
+      // 2. Historische Daten für den Chart laden
+      let dateLimit = '0000-00-00';
+      const now = new Date();
+      if (activeFilter === '3M') {
+        now.setMonth(now.getMonth() - 3);
+        dateLimit = now.toISOString().split('T')[0];
+      } else if (activeFilter === '6M') {
+        now.setMonth(now.getMonth() - 6);
+        dateLimit = now.toISOString().split('T')[0];
+      } else if (activeFilter === '1Y') {
+        now.setFullYear(now.getFullYear() - 1);
+        dateLimit = now.toISOString().split('T')[0];
+      }
 
       const historyResult = await db.getAllAsync(
-        "SELECT timestamp, SUM(value) as value FROM snapshots WHERE timestamp > ? GROUP BY timestamp ORDER BY timestamp ASC;",
-        [timeLimit]
+        "SELECT date, total_value as value FROM daily_history WHERE date >= ? ORDER BY date ASC;",
+        [dateLimit]
       );
       setChartData(historyResult);
 
-      if (historyResult.length >= 2) {
+      // 3. Performance Berechnung (Erster Punkt im Zeitraum vs. Heute)
+      if (historyResult.length >= 1) {
         const first = historyResult[0].value;
-        const last = historyResult[historyResult.length - 1].value;
-        setPerformance({ nominal: last - first, percent: ((last - first) / first) * 100 });
+        setPerformance({ 
+          nominal: currentTotal - first, 
+          percent: first !== 0 ? ((currentTotal - first) / first) * 100 : 0 
+        });
       }
-
-      const portfolioResult = await db.getAllAsync(
-        "SELECT provider, value FROM snapshots GROUP BY provider ORDER BY timestamp DESC;"
-      );
-      setPortfolios(portfolioResult);
     } catch (error) {
       console.error("Fehler beim Laden:", error);
     }
@@ -85,21 +96,39 @@ function MainContent() {
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
-  const handleSaveAsset = async (provider, value, isManual) => {
+  const handleSaveAsset = async (provider, value) => {
     if (!db) return;
-    // Hier könnte Security.encryptValue(value, masterKey) genutzt werden
-    await db.runAsync(
-      "INSERT INTO snapshots (provider, value, is_manual, timestamp) VALUES (?, ?, ?, ?);",
-      [provider, value, isManual ? 1 : 0, Date.now()]
-    );
-    await refreshData();
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    try {
+      // Schritt A: Snapshot des Providers aktualisieren (überschreibt alten Wert)
+      await db.runAsync(
+        "INSERT OR REPLACE INTO snapshots (provider, value, timestamp) VALUES (?, ?, ?);",
+        [provider, value, Date.now()]
+      );
+
+      // Schritt B: Neue Gesamtsumme aller aktuellen Snapshots berechnen
+      const result = await db.getFirstAsync("SELECT SUM(value) as total FROM snapshots;");
+      const newTotal = result?.total || 0;
+
+      // Schritt C: Gesamtsumme für HEUTE in der Historie festhalten
+      await db.runAsync(
+        "INSERT OR REPLACE INTO daily_history (date, total_value) VALUES (?, ?);",
+        [todayStr, newTotal]
+      );
+
+      await refreshData();
+    } catch (error) {
+      console.error("Speicherfehler:", error);
+    }
   };
 
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Theme.colors.primary} />
-        <Text style={{ marginTop: 10 }}>Sicherer Start...</Text>
+        <Text style={{ marginTop: 10 }}>Daten werden geladen...</Text>
       </View>
     );
   }

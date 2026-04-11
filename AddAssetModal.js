@@ -1,6 +1,6 @@
 // AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Präzises Parsing durch provider-spezifische Schlagwörter
+// Fokus: Wechsel auf tesseract.js für Kompatibilität mit Expo Go
 
 import React, { useState } from 'react';
 import { 
@@ -17,14 +17,8 @@ import {
   ActivityIndicator 
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import Tesseract from 'tesseract.js';
 import { Theme } from './Theme';
-
-let MlkitOcr = null;
-try {
-  MlkitOcr = require('expo-mlkit-ocr').default;
-} catch (e) {
-  console.log("OCR-Bibliothek im Browser-Modus nicht verfügbar. Simulation aktiv.");
-}
 
 const PROVIDERS = ['C24', 'Norisbank', 'Trading 212', 'Bitget', 'Timeless'];
 
@@ -34,6 +28,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   const resetAndClose = () => {
     setStep(1);
@@ -41,13 +36,14 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     setInputValue('');
     setSelectedImage(null);
     setIsProcessing(false);
+    setErrorMessage(null);
     onClose();
   };
 
   const handlePickImage = async () => {
     const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!granted) {
-      alert("Zugriff auf Galerie verweigert.");
+      setErrorMessage("Zugriff verweigert. Bitte in den Einstellungen erlauben.");
       return;
     }
 
@@ -67,59 +63,41 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     setStep(4);
     
     try {
-      if (MlkitOcr) {
-        const result = await MlkitOcr.detectFromUri(uri);
-        const fullText = result.map(block => block.text).join(' ');
-        const detected = parseValue(fullText, selectedProvider);
-        setInputValue(detected || '');
-      } else {
-        setTimeout(() => {
-          let mockValue = '0,00';
-          if (selectedProvider === 'C24') mockValue = '1.240,61';
-          if (selectedProvider === 'Norisbank') mockValue = '198,51';
-          if (selectedProvider === 'Trading 212') mockValue = '78.884,37';
-          if (selectedProvider === 'Timeless') mockValue = '526,06';
-          
-          setInputValue(mockValue);
-          setIsProcessing(false);
-        }, 1500);
-        return;
+      // Tesseract Erkennung (Läuft in JS, benötigt kein natives Modul)
+      const { data: { text } } = await Tesseract.recognize(
+        uri,
+        'deu',
+        { logger: m => console.log(m) }
+      );
+
+      const detected = parseValue(text, selectedProvider);
+      
+      if (!detected) {
+        throw new Error(`Kein Betrag für ${selectedProvider} im Screenshot gefunden.`);
       }
+      
+      setInputValue(detected);
     } catch (error) {
-      console.error("OCR Fehler:", error);
-      setInputValue('');
+      console.error("OCR Fehler (Tesseract):", error);
+      setErrorMessage("OCR konnte den Text nicht lesen. Versuche es manuell oder mit einem anderen Bild.");
+      setStep(2);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  /**
-   * Regel: Spezifische Suche nach Beträgen basierend auf Anker-Texten
-   */
   const parseValue = (text, provider) => {
     const amountRegex = /\d{1,3}(\.\d{3})*,\d{2}/g;
     const matches = text.match(amountRegex);
     if (!matches) return null;
-
     const normalizedText = text.toUpperCase();
 
-    // Suche nach dem Betrag, der am wahrscheinlichsten zum Anker gehört
     switch (provider) {
-      case 'Trading 212':
-        if (normalizedText.includes('KONTOWERT')) return matches[0];
-        break;
-      case 'C24':
-        if (normalizedText.includes('SMARTKONTO')) return matches[0];
-        break;
-      case 'Norisbank':
-        if (normalizedText.includes('GESAMTSALDO')) return matches[0];
-        break;
-      case 'Timeless':
-        if (normalizedText.includes('ASSET')) return matches[0];
-        break;
+      case 'Trading 212': if (normalizedText.includes('KONTOWERT')) return matches[0]; break;
+      case 'C24': if (normalizedText.includes('SMARTKONTO')) return matches[0]; break;
+      case 'Norisbank': if (normalizedText.includes('GESAMTSALDO')) return matches[0]; break;
+      case 'Timeless': if (normalizedText.includes('ASSET')) return matches[0]; break;
     }
-
-    // Fallback: Nimm den ersten gefundenen Betrag
     return matches[0];
   };
 
@@ -128,7 +106,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     const finalValue = parseFloat(sanitizedValue);
     
     if (isNaN(finalValue)) {
-      alert("Betrag konnte nicht korrekt interpretiert werden.");
+      setErrorMessage("Ungültiger Betrag. Bitte Punkt und Komma prüfen.");
       return;
     }
     
@@ -155,11 +133,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
               <View>
                 <Text style={styles.label}>Wähle den Anbieter:</Text>
                 {PROVIDERS.map(p => (
-                  <TouchableOpacity 
-                    key={p} 
-                    style={styles.providerCard} 
-                    onPress={() => { setSelectedProvider(p); setStep(2); }}
-                  >
+                  <TouchableOpacity key={p} style={styles.providerCard} onPress={() => { setSelectedProvider(p); setStep(2); }}>
                     <Text style={styles.providerText}>{p}</Text>
                   </TouchableOpacity>
                 ))}
@@ -183,9 +157,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
 
             {(step === 3 || (step === 4 && !isProcessing)) && (
               <View>
-                <Text style={styles.label}>
-                  {step === 4 ? "Gelesener Betrag (bitte prüfen):" : "Betrag eingeben:"}
-                </Text>
+                <Text style={styles.label}>{step === 4 ? "Gelesener Betrag (bitte prüfen):" : "Betrag eingeben:"}</Text>
                 <TextInput 
                   style={[styles.input, step === 4 && styles.reviewInput]}
                   value={inputValue}
@@ -194,11 +166,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
                   placeholder="0,00"
                   autoFocus={step === 3}
                 />
-                
-                {selectedImage && step === 4 && (
-                  <Image source={{ uri: selectedImage }} style={styles.previewImage} />
-                )}
-
+                {selectedImage && step === 4 && <Image source={{ uri: selectedImage }} style={styles.previewImage} />}
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                   <Text style={styles.saveBtnText}>Bestätigen & Speichern</Text>
                 </TouchableOpacity>
@@ -208,12 +176,23 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
             {isProcessing && (
               <View style={styles.loadingArea}>
                 <ActivityIndicator size="large" color={Theme.colors.primary} />
-                <Text style={styles.loadingText}>Suche Schlüsselwort...</Text>
-                {!MlkitOcr && <Text style={styles.mockHint}>(Simulation aktiv)</Text>}
+                <Text style={styles.loadingText}>Tesseract OCR arbeitet...</Text>
               </View>
             )}
           </ScrollView>
         </KeyboardAvoidingView>
+
+        {errorMessage && (
+          <View style={styles.errorContainer}>
+            <View style={styles.errorDialog}>
+              <Text style={styles.errorTitle}>Fehler</Text>
+              <Text style={styles.errorMessage}>{errorMessage}</Text>
+              <TouchableOpacity style={styles.errorBtn} onPress={() => setErrorMessage(null)}>
+                <Text style={styles.errorBtnText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -239,6 +218,11 @@ const styles = StyleSheet.create({
   saveBtnText: { color: Theme.colors.white, fontSize: 18, fontWeight: 'bold' },
   loadingArea: { padding: 40, alignItems: 'center' },
   loadingText: { marginTop: 10, color: Theme.colors.textSecondary },
-  mockHint: { fontSize: 10, color: Theme.colors.placeholder, marginTop: 5 },
-  previewImage: { width: '100%', height: 200, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.l, resizeMode: 'contain' }
+  previewImage: { width: '100%', height: 200, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.l, resizeMode: 'contain' },
+  errorContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+  errorDialog: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.m, padding: Theme.spacing.l, alignItems: 'center' },
+  errorTitle: { fontSize: 18, fontWeight: 'bold', color: '#FF3B30', marginBottom: 10 },
+  errorMessage: { fontSize: 16, color: Theme.colors.text, textAlign: 'center', marginBottom: 20 },
+  errorBtn: { backgroundColor: Theme.colors.primary, paddingVertical: 10, paddingHorizontal: 30, borderRadius: Theme.borderRadius.m },
+  errorBtnText: { color: Theme.colors.white, fontWeight: 'bold' }
 });

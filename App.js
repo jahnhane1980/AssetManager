@@ -6,10 +6,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SQLite from 'expo-sqlite';
-import { Theme } from './Theme';
-import { Security } from './Security';
-import AddAssetModal from './AddAssetModal';
-import Chart from './Chart';
+import { Theme } from './components/Theme';
+import { Security } from './components/Security';
+import AddAssetModal from './components/AddAssetModal';
+import Chart from './components/Chart';
 
 function MainContent() {
   const insets = useSafeAreaInsets();

@@ -1,6 +1,6 @@
 // components/Chart.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Filter-Logik und UI integriert
+// Refactoring: FontWeights auf Theme.js umgestellt
 
 import React, { useState } from 'react';
 import { View, Dimensions, StyleSheet, TouchableOpacity, Text } from 'react-native';
@@ -14,7 +14,6 @@ const { HEIGHT, PADDING, FILTERS } = AppConstants.CHART;
 export default function Chart({ data, onFilterChange }) {
   const [activeFilter, setActiveFilter] = useState('ALL');
 
-  // Logik zur Berechnung des Zeitlimits basierend auf dem Filter
   const handleFilterPress = (filter) => {
     setActiveFilter(filter);
     
@@ -32,7 +31,6 @@ export default function Chart({ data, onFilterChange }) {
       timeLimit = now.getTime();
     }
     
-    // Callback an App.js, um neue Daten zu laden
     if (onFilterChange) {
       onFilterChange(timeLimit);
     }
@@ -135,7 +133,8 @@ const styles = StyleSheet.create({
   },
   filterBtnText: {
     color: Theme.colors.textSecondary,
-    fontWeight: '600'
+    fontWeight: Theme.fontWeight.semibold,
+    fontSize: Theme.fontSize.caption
   },
   filterBtnTextActive: {
     color: Theme.colors.white

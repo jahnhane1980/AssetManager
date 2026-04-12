@@ -95,6 +95,24 @@ class AssetRepository {
       throw error;
     }
   }
+
+  /**
+   * Löscht alle Daten aus den Tabellen.
+   * Der API-Key (SecureStore) ist hiervon nicht betroffen.
+   */
+  async clearAllData() {
+    if (!this.db) await this.initialize();
+    try {
+      await this.db.execAsync(`
+        DELETE FROM snapshots;
+        DELETE FROM ${Config.DATABASE.TABLE_HISTORY};
+      `);
+      return true;
+    } catch (error) {
+      console.error("Repository: Fehler beim Löschen der Daten:", error);
+      throw error;
+    }
+  }
 }
 
 export default new AssetRepository();

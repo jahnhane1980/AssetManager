@@ -1,6 +1,6 @@
 // components/PortfolioList.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Darstellung der Portfolio-Einträge
+// Refactoring: Styles auf Theme.js (inkl. FontWeights) umgestellt
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -37,8 +37,8 @@ const styles = StyleSheet.create({
     marginTop: Theme.spacing.m,
   },
   subTitle: { 
-    fontSize: 18, 
-    fontWeight: '600', 
+    fontSize: Theme.fontSize.subHeader, 
+    fontWeight: Theme.fontWeight.semibold, 
     marginBottom: Theme.spacing.s, 
     color: Theme.colors.text 
   },
@@ -54,12 +54,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between' 
   },
   providerName: { 
-    fontSize: 16, 
-    fontWeight: '500' 
+    fontSize: Theme.fontSize.body, 
+    fontWeight: Theme.fontWeight.medium,
+    color: Theme.colors.text
   },
   providerValue: { 
-    fontSize: 16, 
-    fontWeight: 'bold' 
+    fontSize: Theme.fontSize.body, 
+    fontWeight: Theme.fontWeight.bold,
+    color: Theme.colors.text
   },
   emptyContainer: {
     padding: Theme.spacing.l,
@@ -67,6 +69,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: Theme.colors.textSecondary,
-    fontStyle: 'italic'
+    fontStyle: 'italic',
+    fontSize: Theme.fontSize.body
   }
 });

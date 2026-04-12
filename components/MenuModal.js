@@ -1,6 +1,6 @@
 // components/MenuModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fix: Platform Import hinzugefügt
+// Refactoring: Menüeintrag zum Löschen hinzugefügt
 
 import React from 'react';
 import { 
@@ -10,12 +10,12 @@ import {
   Modal, 
   TouchableOpacity, 
   TouchableWithoutFeedback,
-  Platform // Fix: Import hinzugefügt
+  Platform 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 
-export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHistory }) {
+export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHistory, onOpenDeleteConfirm }) {
   return (
     <Modal visible={visible} animationType="fade" transparent={true}>
       <TouchableWithoutFeedback onPress={onClose}>
@@ -40,6 +40,17 @@ export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHist
               <Text style={styles.menuText}>Einstellungen</Text>
             </TouchableOpacity>
 
+            <View style={styles.divider} />
+
+            {/* Neuer Eintrag: Daten löschen */}
+            <TouchableOpacity 
+              style={styles.menuItem} 
+              onPress={() => { onOpenDeleteConfirm(); onClose(); }}
+            >
+              <Ionicons name="trash-outline" size={20} color={Theme.colors.error} style={styles.icon} />
+              <Text style={[styles.menuText, { color: Theme.colors.error }]}>Daten löschen</Text>
+            </TouchableOpacity>
+
           </View>
         </View>
       </TouchableWithoutFeedback>
@@ -48,16 +59,16 @@ export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHist
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
+  overlay: { flex: 1, backgroundColor: Theme.colors.overlayLight },
   menuContainer: { 
     position: 'absolute', 
     right: 15, 
     top: Platform.OS === 'ios' ? 70 : 30, 
     backgroundColor: Theme.colors.surface, 
     borderRadius: Theme.borderRadius.m, 
-    width: 180,
+    width: 200, // Etwas breiter für den neuen Text
     elevation: 5,
-    shadowColor: '#000',
+    shadowColor: Theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -70,6 +81,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Theme.spacing.l 
   },
   icon: { marginRight: 15 },
-  menuText: { fontSize: 16, color: Theme.colors.text, fontWeight: '500' },
+  menuText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, fontWeight: Theme.fontWeight.medium },
   divider: { height: 1, backgroundColor: Theme.colors.border }
 });

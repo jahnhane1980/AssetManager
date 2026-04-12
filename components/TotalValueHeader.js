@@ -1,6 +1,6 @@
 // components/TotalValueHeader.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Anzeige des Gesamtvermögens und Steuerung des Menü-Buttons
+// Refactoring: FontWeights und FontSizes auf Theme.js umgestellt
 
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Platform } from 'react-native';
@@ -12,7 +12,6 @@ export default function TotalValueHeader({ totalValue, performance, onMenuPress 
 
   return (
     <View style={styles.header}>
-      {/* Menü-Button */}
       <TouchableOpacity 
         style={styles.menuButton} 
         onPress={onMenuPress}
@@ -28,7 +27,7 @@ export default function TotalValueHeader({ totalValue, performance, onMenuPress 
 
       <Text style={[
         styles.perfText, 
-        { color: isPositive ? '#4CD964' : '#FF3B30' }
+        { color: isPositive ? Theme.colors.success : Theme.colors.error }
       ]}>
         {isPositive ? '+' : ''}
         {performance.nominal.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} 
@@ -55,17 +54,17 @@ const styles = StyleSheet.create({
     zIndex: 10 
   },
   title: { 
-    fontSize: 14, 
+    fontSize: Theme.fontSize.caption, 
     color: Theme.colors.textSecondary 
   },
   amount: { 
-    fontSize: 32, 
-    fontWeight: 'bold', 
+    fontSize: Theme.fontSize.display, 
+    fontWeight: Theme.fontWeight.bold, 
     color: Theme.colors.text 
   },
   perfText: { 
-    fontSize: 16, 
-    fontWeight: '600', 
+    fontSize: Theme.fontSize.body, 
+    fontWeight: Theme.fontWeight.semibold, 
     marginTop: 5 
   },
 });

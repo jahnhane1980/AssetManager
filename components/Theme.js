@@ -12,6 +12,28 @@ export const Theme = {
     white: '#ffffff',
     placeholder: '#999999',
     shadow: '#000000',
+    error: '#FF3B30',
+    success: '#4CD964',
+    overlay: 'rgba(0,0,0,0.5)',
+    overlayStrong: 'rgba(0,0,0,0.7)',
+    overlayLight: 'rgba(0,0,0,0.3)',
+    overlayMedium: 'rgba(0,0,0,0.6)',
+  },
+  fontSize: {
+    hint: 12,
+    description: 13,
+    caption: 14,
+    body: 16,
+    subHeader: 18,
+    header: 20,
+    display: 32,
+  },
+  fontWeight: {
+    light: '300',
+    regular: '400',
+    medium: '500', // MenuModal, PortfolioList
+    semibold: '600', // Chart, PortfolioList, Header Labels
+    bold: 'bold', // Haupt-Beträge, Primär-Buttons
   },
   spacing: {
     xs: 5,

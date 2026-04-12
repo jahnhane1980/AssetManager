@@ -1,6 +1,6 @@
 // AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Emojis durch Ionicons ersetzt, Header bereinigt
+// Refactoring: FontWeights auf Theme.js umgestellt
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -17,7 +17,7 @@ import {
   ActivityIndicator 
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons'; // Neu: Icons importieren
+import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import { Security } from './Security';
 import { Config } from '../constants/Config';
@@ -149,7 +149,6 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalContainer}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{selectedProvider || 'Hinzufügen'}</Text>
-            {/* Abbrechen jetzt als reiner Text oder Icon */}
             <TouchableOpacity onPress={resetAndClose} style={styles.closeBtnContainer}>
               <Ionicons name="close" size={24} color={Theme.colors.primary} />
             </TouchableOpacity>
@@ -171,7 +170,6 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
               <View>
                 <Text style={styles.label}>Eingabe für {selectedProvider}:</Text>
                 
-                {/* Method Buttons mit Ionicons statt Emojis */}
                 <TouchableOpacity style={styles.methodBtn} onPress={handlePickImage}>
                   <Ionicons name="camera-outline" size={20} color={Theme.colors.white} style={styles.methodIcon} />
                   <Text style={styles.methodBtnText}>Screenshot analysieren</Text>
@@ -179,7 +177,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
                 
                 {!hasApiKey && (
                   <View style={styles.hintContainer}>
-                    <Ionicons name="warning-outline" size={16} color="#FF3B30" style={{marginRight: 5}} />
+                    <Ionicons name="warning-outline" size={16} color={Theme.colors.error} style={{marginRight: 5}} />
                     <Text style={styles.hint}>API-Key fehlt! (Siehe App-Menü)</Text>
                   </View>
                 )}
@@ -243,35 +241,35 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  overlay: { flex: 1, backgroundColor: Theme.colors.overlay, justifyContent: 'flex-end' },
   modalContainer: { backgroundColor: Theme.colors.surface, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, minHeight: '40%', maxHeight: '85%' },
   header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: Theme.colors.text },
+  headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
   closeBtnContainer: { padding: 5 },
   scrollContent: { padding: Theme.spacing.l },
-  label: { fontSize: 16, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m },
+  label: { fontSize: Theme.fontSize.body, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m },
   providerCard: { padding: Theme.spacing.m, borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.s },
-  providerText: { fontSize: 16, fontWeight: '500', color: Theme.colors.text },
+  providerText: { fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.medium, color: Theme.colors.text },
   methodBtn: { flexDirection: 'row', backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center', justifyContent: 'center', marginBottom: Theme.spacing.s },
   methodIcon: { marginRight: 10 },
   manualBtn: { backgroundColor: Theme.colors.text },
-  methodBtnText: { color: Theme.colors.white, fontSize: 16, fontWeight: '600' },
+  methodBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.semibold },
   hintContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  hint: { color: '#FF3B30', fontSize: 12, fontWeight: 'bold' },
+  hint: { color: Theme.colors.error, fontSize: Theme.fontSize.hint, fontWeight: Theme.fontWeight.bold },
   backBtnContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: Theme.spacing.m },
   backBtnText: { color: Theme.colors.textSecondary },
-  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: 32, textAlign: 'center', marginBottom: Theme.spacing.l, color: Theme.colors.text },
-  reviewInput: { borderColor: Theme.colors.primary, color: Theme.colors.primary, fontWeight: 'bold' },
+  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: Theme.fontSize.display, textAlign: 'center', marginBottom: Theme.spacing.l, color: Theme.colors.text },
+  reviewInput: { borderColor: Theme.colors.primary, color: Theme.colors.primary, fontWeight: Theme.fontWeight.bold },
   saveBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
-  saveBtnText: { color: Theme.colors.white, fontSize: 18, fontWeight: 'bold' },
+  saveBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold },
   loadingArea: { padding: 40, alignItems: 'center' },
   loadingText: { marginTop: 10, color: Theme.colors.textSecondary },
   previewImage: { width: '100%', height: 180, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.l, resizeMode: 'contain' },
-  errorContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+  errorContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: Theme.colors.overlayStrong, justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   errorDialog: { width: '80%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.m, padding: Theme.spacing.l, alignItems: 'center' },
   errorHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  errorTitle: { fontSize: 18, fontWeight: 'bold', color: Theme.colors.text },
-  errorMessage: { fontSize: 16, color: Theme.colors.textSecondary, textAlign: 'center', marginBottom: 20 },
+  errorTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
+  errorMessage: { fontSize: Theme.fontSize.body, color: Theme.colors.textSecondary, textAlign: 'center', marginBottom: 20 },
   errorBtn: { backgroundColor: Theme.colors.primary, paddingVertical: 10, paddingHorizontal: 30, borderRadius: Theme.borderRadius.m },
-  errorBtnText: { color: Theme.colors.white, fontWeight: 'bold' }
+  errorBtnText: { color: Theme.colors.white, fontWeight: Theme.fontWeight.bold }
 });

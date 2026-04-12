@@ -1,6 +1,6 @@
 // components/HistoryModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fix: Platform Import hinzugefügt
+// Refactoring: Schließen-Icon Farbe auf Primärfarbe vereinheitlicht
 
 import React from 'react';
 import { 
@@ -10,7 +10,7 @@ import {
   Modal, 
   TouchableOpacity, 
   ScrollView,
-  Platform // Fix: Import hinzugefügt
+  Platform 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
@@ -21,8 +21,9 @@ export default function HistoryModal({ visible, onClose }) {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Vermögensverlauf</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={Theme.colors.text} />
+          {/* Farbe auf Primärfarbe angepasst */}
+          <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
+            <Ionicons name="close" size={24} color={Theme.colors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -60,8 +61,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, 
     borderBottomColor: Theme.colors.border 
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: Theme.colors.text },
-  closeBtn: { padding: 5 },
+  headerTitle: { fontSize: Theme.fontSize.header, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
+  closeBtnContainer: { padding: 5 }, // Style-Name vereinheitlicht
   content: { padding: Theme.spacing.l },
   dummyChart: { 
     height: 200, 
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed'
   },
   dummyText: { marginTop: 15, color: Theme.colors.textSecondary, textAlign: 'center' },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: Theme.colors.text, marginBottom: Theme.spacing.m },
+  sectionTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.semibold, color: Theme.colors.text, marginBottom: Theme.spacing.m },
   dummyList: { gap: Theme.spacing.s },
   dummyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.colors.surface, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.s },
   itemText: { color: Theme.colors.text }

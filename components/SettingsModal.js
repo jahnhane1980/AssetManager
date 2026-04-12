@@ -1,6 +1,6 @@
 // components/SettingsModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Zentrale App-Einstellungen & API-Key Management
+// Refactoring: Schließen-Button auf standardisiertes "X"-Icon umgestellt
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView, 
   Platform 
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons'; // Neu: Icons importiert
 import { Theme } from './Theme';
 import { Security } from './Security';
 
@@ -55,8 +56,9 @@ export default function SettingsModal({ visible, onClose }) {
         >
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Einstellungen</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Text style={styles.closeBtn}>Schließen</Text>
+            {/* Umgestellt auf Icon-Button */}
+            <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
+              <Ionicons name="close" size={24} color={Theme.colors.primary} />
             </TouchableOpacity>
           </View>
 
@@ -91,18 +93,18 @@ export default function SettingsModal({ visible, onClose }) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+  overlay: { flex: 1, backgroundColor: Theme.colors.overlayMedium, justifyContent: 'center', alignItems: 'center' },
   modalContainer: { width: '90%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: Theme.colors.text },
-  closeBtn: { color: Theme.colors.primary, fontWeight: '600' },
+  headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
+  closeBtnContainer: { padding: 5 }, // Einheitliches Padding für Icons
   content: { padding: Theme.spacing.l },
-  label: { fontSize: 16, fontWeight: '600', color: Theme.colors.text, marginBottom: 5 },
-  description: { fontSize: 13, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m, lineHeight: 18 },
-  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: 16, marginBottom: Theme.spacing.l, color: Theme.colors.text },
+  label: { fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.semibold, color: Theme.colors.text, marginBottom: 5 },
+  description: { fontSize: Theme.fontSize.description, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m, lineHeight: 18 },
+  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: Theme.fontSize.body, marginBottom: Theme.spacing.l, color: Theme.colors.text },
   saveBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
-  saveBtnText: { color: Theme.colors.white, fontSize: 16, fontWeight: 'bold' },
-  status: { textAlign: 'center', marginBottom: 15, fontWeight: '500' },
-  error: { color: '#FF3B30' },
-  success: { color: '#4CD964' }
+  saveBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold },
+  status: { textAlign: 'center', marginBottom: 15, fontWeight: Theme.fontWeight.medium },
+  error: { color: Theme.colors.error },
+  success: { color: Theme.colors.success }
 });

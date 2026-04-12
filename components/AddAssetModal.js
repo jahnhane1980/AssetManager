@@ -1,6 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Fix der React-Hook Dependencies (useEffect) & Stabilität durch useCallback.
+// Refactoring: Manuelle Datumseingabe im Picker-Modul hinzugefügt.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -33,6 +33,9 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const [activeRowId, setActiveRowId] = useState(null);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  
+  // State für manuelle Datumseingabe
+  const [manualDateText, setManualDateText] = useState('');
 
   // --- Stabilisierte Funktionen ---
 
@@ -47,7 +50,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
       provider: AppConstants.PROVIDERS[0],
       value: '',
       timestamp: Date.now(),
-      status: 'manual', // 'manual', 'processing', 'ai-done'
+      status: 'manual', 
       isConfirmed: false
     };
     setRows(prev => [...prev, newRow]);
@@ -69,8 +72,35 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const resetAndClose = useCallback(() => {
     setRows([]);
     setErrorMessage(null);
+    setManualDateText('');
     onClose();
   }, [onClose]);
+
+  // Hilfsfunktion: Datum-String (DD.MM.YY oder DD.MM.YYYY) parsen
+  const parseManualDate = (text) => {
+    const parts = text.split('.');
+    if (parts.length !== 3) return null;
+
+    let [day, month, year] = parts.map(p => parseInt(p, 10));
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+
+    // Einfaches Year-Handling: 26 -> 2026
+    if (year < 100) year += 2000;
+    
+    const date = new Date(year, month - 1, day);
+    return isNaN(date.getTime()) ? null : date.getTime();
+  };
+
+  const handleApplyManualDate = () => {
+    const ts = parseManualDate(manualDateText);
+    if (ts) {
+      updateRow(activeRowId, { timestamp: ts });
+      setShowDatePicker(false);
+      setManualDateText('');
+    } else {
+      setErrorMessage("Ungültiges Format. Bitte TT.MM.JJ nutzen.");
+    }
+  };
 
   // --- Initialisierung ---
   useEffect(() => {
@@ -159,7 +189,6 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     }
   };
 
-  // --- Helper Render ---
   const formatDate = (ts) => {
     const d = new Date(ts);
     return d.toLocaleDateString('de-DE');
@@ -264,7 +293,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
           </View>
         </KeyboardAvoidingView>
 
-        {/* --- Sub-Modals für Selektion --- */}
+        {/* --- Sub-Modals --- */}
         
         <Modal visible={showProviderPicker} transparent={true} animationType="fade">
           <TouchableOpacity 
@@ -291,24 +320,46 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
           <TouchableOpacity 
             style={styles.subOverlay} 
             activeOpacity={1} 
-            onPress={() => setShowDatePicker(false)}
+            onPress={() => { setShowDatePicker(false); setManualDateText(''); }}
           >
             <View style={styles.pickerContent}>
               <Text style={styles.pickerTitle}>Datum wählen</Text>
-              {[0, 1, 2, 3, 7].map(daysBack => {
-                const d = new Date();
-                d.setDate(d.getDate() - daysBack);
-                const label = daysBack === 0 ? "Heute" : daysBack === 1 ? "Gestern" : `${daysBack} Tage her`;
-                return (
-                  <TouchableOpacity 
-                    key={daysBack} 
-                    style={styles.pickerItem} 
-                    onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePicker(false); }}
-                  >
-                    <Text style={styles.pickerItemText}>{label} ({formatDate(d.getTime())})</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              
+              {/* Quick Select */}
+              <View style={styles.quickSelectRow}>
+                {[0, 1].map(daysBack => {
+                  const d = new Date();
+                  d.setDate(d.getDate() - daysBack);
+                  const label = daysBack === 0 ? "Heute" : "Gestern";
+                  return (
+                    <TouchableOpacity 
+                      key={daysBack} 
+                      style={styles.quickBtn} 
+                      onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePicker(false); }}
+                    >
+                      <Text style={styles.quickBtnText}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* Manuelle Eingabe */}
+              <Text style={styles.manualLabel}>Oder manuell eingeben:</Text>
+              <View style={styles.manualInputRow}>
+                <TextInput 
+                  style={styles.manualInput}
+                  placeholder="TT.MM.JJ"
+                  value={manualDateText}
+                  onChangeText={setManualDateText}
+                  keyboardType="numeric"
+                  maxLength={10}
+                />
+                <TouchableOpacity style={styles.applyBtn} onPress={handleApplyManualDate}>
+                  <Ionicons name="checkmark-circle" size={32} color={Theme.colors.success} />
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         </Modal>
@@ -352,8 +403,16 @@ const styles = StyleSheet.create({
   saveAllBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold },
   disabledBtn: { opacity: 0.6 },
   subOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  pickerContent: { width: '80%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l },
-  pickerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, marginBottom: Theme.spacing.m, textAlign: 'center' },
+  pickerContent: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l },
+  pickerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, marginBottom: Theme.spacing.l, textAlign: 'center' },
+  quickSelectRow: { flexDirection: 'row', gap: 10, marginBottom: Theme.spacing.m },
+  quickBtn: { flex: 1, backgroundColor: Theme.colors.background, padding: 12, borderRadius: Theme.borderRadius.m, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
+  quickBtnText: { fontWeight: Theme.fontWeight.semibold, color: Theme.colors.primary },
+  divider: { height: 1, backgroundColor: Theme.colors.border, marginVertical: Theme.spacing.m },
+  manualLabel: { fontSize: Theme.fontSize.caption, color: Theme.colors.textSecondary, marginBottom: 10 },
+  manualInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  manualInput: { flex: 1, backgroundColor: Theme.colors.background, borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, padding: 12, fontSize: Theme.fontSize.body, textAlign: 'center' },
+  applyBtn: { padding: 2 },
   pickerItem: { paddingVertical: Theme.spacing.m, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
   pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' },
   errorBanner: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: Theme.colors.error, padding: 10, borderRadius: Theme.borderRadius.m, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 9999 },

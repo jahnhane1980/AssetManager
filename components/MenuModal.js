@@ -1,6 +1,6 @@
 // components/MenuModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Menüeintrag zum Löschen hinzugefügt
+// Refactoring: Menüeintrag für Backup & Restore hinzugefügt
 
 import React from 'react';
 import { 
@@ -15,7 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 
-export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHistory, onOpenDeleteConfirm }) {
+export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHistory, onOpenDeleteConfirm, onOpenBackup }) {
   return (
     <Modal visible={visible} animationType="fade" transparent={true}>
       <TouchableWithoutFeedback onPress={onClose}>
@@ -34,6 +34,16 @@ export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHist
 
             <TouchableOpacity 
               style={styles.menuItem} 
+              onPress={() => { onOpenBackup(); onClose(); }}
+            >
+              <Ionicons name="cloud-upload-outline" size={20} color={Theme.colors.text} style={styles.icon} />
+              <Text style={styles.menuText}>Backup & Restore</Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity 
+              style={styles.menuItem} 
               onPress={() => { onOpenSettings(); onClose(); }}
             >
               <Ionicons name="settings-outline" size={20} color={Theme.colors.text} style={styles.icon} />
@@ -42,7 +52,6 @@ export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHist
 
             <View style={styles.divider} />
 
-            {/* Neuer Eintrag: Daten löschen */}
             <TouchableOpacity 
               style={styles.menuItem} 
               onPress={() => { onOpenDeleteConfirm(); onClose(); }}
@@ -66,7 +75,7 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 70 : 30, 
     backgroundColor: Theme.colors.surface, 
     borderRadius: Theme.borderRadius.m, 
-    width: 200, // Etwas breiter für den neuen Text
+    width: 220, 
     elevation: 5,
     shadowColor: Theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },

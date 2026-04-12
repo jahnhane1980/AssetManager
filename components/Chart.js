@@ -1,6 +1,6 @@
 // components/Chart.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Anpassung an die neue Daily-History-Struktur
+// Refactoring: Anzeige der aktuellen Aggregationsstufe
 
 import React, { useState } from 'react';
 import { View, Dimensions, StyleSheet, TouchableOpacity, Text } from 'react-native';
@@ -11,7 +11,7 @@ import { AppConstants } from '../constants/AppConstants';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const { HEIGHT, PADDING, FILTERS } = AppConstants.CHART;
 
-export default function Chart({ data, onFilterChange }) {
+export default function Chart({ data, aggregation, onFilterChange }) {
   const [activeFilter, setActiveFilter] = useState('ALL');
 
   const handleFilterPress = (filter) => {
@@ -36,8 +36,17 @@ export default function Chart({ data, onFilterChange }) {
     }
   };
 
+  const getAggregationLabel = () => {
+    switch (aggregation) {
+      case 'DAILY': return 'Täglich';
+      case 'WEEKLY': return 'Wöchentlich';
+      case 'MONTHLY': return 'Monatlich';
+      case 'YEARLY': return 'Jährlich';
+      default: return '';
+    }
+  };
+
   const renderChart = () => {
-    // Prüfung auf ausreichende Daten für eine Linie
     if (!data || data.length < 2) {
       return (
         <View style={[styles.chartArea, { justifyContent: 'center' }]}>
@@ -54,7 +63,6 @@ export default function Chart({ data, onFilterChange }) {
     const min = Math.min(...values);
     const max = Math.max(...values);
     
-    // Kleiner Puffer oben und unten, damit die Linie nicht am Rand klebt
     const range = (max - min) || 1;
     const paddingBuffer = range * 0.1;
     const adjMin = min - paddingBuffer;
@@ -62,9 +70,7 @@ export default function Chart({ data, onFilterChange }) {
     const adjRange = adjMax - adjMin;
 
     const points = data.map((d, i) => {
-      // X-Koordinate basierend auf dem Index (gleichmäßige Verteilung der Tage)
       const x = PADDING + (i * (SCREEN_WIDTH - PADDING * 5)) / (data.length - 1);
-      // Y-Koordinate invertiert (0 oben)
       const y = HEIGHT - PADDING - ((d.value - adjMin) / adjRange) * (HEIGHT - PADDING * 2);
       return `${x},${y}`;
     });
@@ -99,6 +105,11 @@ export default function Chart({ data, onFilterChange }) {
 
   return (
     <View style={styles.container}>
+      {/* Aggregations-Label als kleiner Hinweis */}
+      <View style={styles.infoRow}>
+        <Text style={styles.infoText}>Auflösung: {getAggregationLabel()}</Text>
+      </View>
+
       {renderChart()}
       
       <View style={styles.filterRow}>
@@ -124,6 +135,17 @@ const styles = StyleSheet.create({
     marginBottom: Theme.spacing.l,
     elevation: 2,
     alignItems: 'center'
+  },
+  infoRow: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: Theme.spacing.l,
+    marginBottom: 5
+  },
+  infoText: {
+    fontSize: 10,
+    color: Theme.colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1
   },
   chartArea: {
     height: HEIGHT,

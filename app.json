@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "assetmanager",
-    "slug": "snack-5f28b740-5540-4c0d-be6f-d383926d45f0",
+    "slug": "snack-3c48964a-225b-439c-8555-ae2669f37412",
+    "scheme": "assetmanager-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,13 +14,15 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jahnhane.assetmanager"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.jahnhane.assetmanager",
       "edgeToEdgeEnabled": true
     },
     "web": {

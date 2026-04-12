@@ -1,6 +1,6 @@
 // App.js
 // Regel 0: Absolute Transparenz | Regel 6: Vollständiger Dateiinhalt
-// Refactoring: Nutzung des Custom Hooks usePortfolioData
+// Refactoring: Einbindung des BackupModals
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, ActivityIndicator } from 'react-native';
@@ -17,6 +17,7 @@ import SettingsModal from './components/SettingsModal';
 import MenuModal from './components/MenuModal';
 import HistoryModal from './components/HistoryModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
+import BackupModal from './components/BackupModal'; // Neu importiert
 
 // Importiere den neuen Hook (Pfad anpassen falls nötig)
 import { usePortfolioData } from './hooks/usePortfolioData';
@@ -42,6 +43,7 @@ function MainContent() {
   const [isSettingsVisible, setSettingsVisible] = useState(false);
   const [isHistoryVisible, setHistoryVisible] = useState(false);
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [isBackupVisible, setBackupVisible] = useState(false); // Neuer State
 
   useEffect(() => {
     async function initApp() {
@@ -114,6 +116,7 @@ function MainContent() {
         onOpenSettings={() => setSettingsVisible(true)}
         onOpenHistory={() => setHistoryVisible(true)}
         onOpenDeleteConfirm={() => setDeleteModalVisible(true)}
+        onOpenBackup={() => setBackupVisible(true)} // Neuer Menüpunkt
       />
       
       <SettingsModal visible={isSettingsVisible} onClose={() => setSettingsVisible(false)} />
@@ -123,6 +126,12 @@ function MainContent() {
         visible={isDeleteModalVisible} 
         onClose={() => setDeleteModalVisible(false)} 
         onConfirm={handleDeleteAllData}
+      />
+
+      <BackupModal 
+        visible={isBackupVisible} 
+        onClose={() => setBackupVisible(false)} 
+        onRestoreSuccess={refresh}
       />
     </View>
   );

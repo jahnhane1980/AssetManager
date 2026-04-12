@@ -1,6 +1,8 @@
 // repositories/AssetRepository.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Kapselung der SQLite-Logik mit Aggregations-Unterstützung
+// Fix: Snapshot-View nutzt nun den chronologisch letzten Stand (MAX timestamp) statt der Insert-Reihenfolge
+// Erweiterung: Zugriff auf DB-Dateinamen für Backup-Zwecke
 
 import * as SQLite from 'expo-sqlite';
 import { Config } from '../constants/Config';
@@ -37,13 +39,17 @@ class AssetRepository {
           total_value REAL NOT NULL
         );
 
-        -- 3. Snapshot View: Zeigt immer den aktuellsten Wert pro Anbieter
+        -- 3. Snapshot View: Zeigt immer den chronologisch aktuellsten Wert pro Anbieter
         DROP VIEW IF EXISTS ${VIEW_SNAPSHOTS};
         CREATE VIEW ${VIEW_SNAPSHOTS} AS
         SELECT provider, value, timestamp
         FROM ${TABLE_ENTRIES}
         WHERE id IN (
-            SELECT MAX(id) FROM ${TABLE_ENTRIES} GROUP BY provider
+            SELECT id 
+            FROM ${TABLE_ENTRIES} AS e2
+            WHERE e2.provider = ${TABLE_ENTRIES}.provider
+            ORDER BY timestamp DESC, id DESC
+            LIMIT 1
         );
 
         -- 4. Trigger: Automatische Aktualisierung der Daily History bei neuen Einträgen
@@ -68,6 +74,13 @@ class AssetRepository {
       console.error("Repository: Fehler bei der Initialisierung:", error);
       throw error;
     }
+  }
+
+  /**
+   * Liefert den Namen der Datenbankdatei zurück (wichtig für FileSystem-Operationen).
+   */
+  getDatabaseFileName() {
+    return Config.DATABASE.NAME;
   }
 
   /**

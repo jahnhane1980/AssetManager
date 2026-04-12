@@ -1,6 +1,6 @@
 // repositories/AssetRepository.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Kapselung der SQLite-Logik mit VIEWs und TRIGGERN
+// Fokus: Kapselung der SQLite-Logik mit Aggregations-Unterstützung
 
 import * as SQLite from 'expo-sqlite';
 import { Config } from '../constants/Config';
@@ -47,7 +47,6 @@ class AssetRepository {
         );
 
         -- 4. Trigger: Automatische Aktualisierung der Daily History bei neuen Einträgen
-        -- Wir berechnen bei jedem Insert den Gesamtwert für diesen Tag neu.
         DROP TRIGGER IF EXISTS tr_update_daily_history;
         CREATE TRIGGER tr_update_daily_history
         AFTER INSERT ON ${TABLE_ENTRIES}
@@ -57,7 +56,6 @@ class AssetRepository {
                 date(NEW.timestamp / 1000, 'unixepoch'),
                 SUM(value)
             FROM (
-                -- Wir nehmen den jeweils letzten Wert jedes Providers bis zu diesem Tag
                 SELECT value FROM ${TABLE_ENTRIES} 
                 WHERE date(timestamp / 1000, 'unixepoch') <= date(NEW.timestamp / 1000, 'unixepoch')
                 GROUP BY provider HAVING MAX(timestamp)
@@ -90,28 +88,47 @@ class AssetRepository {
   }
 
   /**
-   * Holt die Historie aus der optimierten Daily-Tabelle.
+   * Holt die Historie mit optionaler Aggregation (DAILY, WEEKLY, MONTHLY, YEARLY).
    */
-  async getHistory(timeLimit = 0, limit = 1000, offset = 0, sortOrder = 'ASC') {
+  async getHistory(timeLimit = 0, limit = 1000, offset = 0, sortOrder = 'ASC', aggregation = 'DAILY') {
     if (!this.db) await this.initialize();
     const order = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
     
-    // Da daily_history nach Datum (TEXT) speichert, wandeln wir das Limit um
+    // Umwandlung des Zeitstempels in ISO-Datum für SQLite Vergleich
     const dateLimit = new Date(timeLimit).toISOString().split('T')[0];
 
-    return await this.db.getAllAsync(
-      `SELECT date as timestamp, total_value as value 
-       FROM ${Config.DATABASE.TABLE_DAILY_HISTORY} 
-       WHERE date >= ? 
-       ORDER BY date ${order} 
-       LIMIT ? OFFSET ?;`,
-      [dateLimit, limit, offset]
-    );
+    let query = "";
+    let params = [dateLimit];
+
+    if (aggregation === 'DAILY') {
+      query = `SELECT date as timestamp, total_value as value FROM ${Config.DATABASE.TABLE_DAILY_HISTORY} WHERE date >= ?`;
+    } else {
+      // Mapping der Aggregations-Patterns für strftime
+      const patterns = {
+        'WEEKLY': '%Y-%W',
+        'MONTHLY': '%Y-%m',
+        'YEARLY': '%Y'
+      };
+      const pattern = patterns[aggregation] || '%Y-%m';
+      
+      // Wir wählen jeweils den letzten Tag der Periode aus, um den Endstand anzuzeigen
+      query = `
+        SELECT date as timestamp, total_value as value 
+        FROM ${Config.DATABASE.TABLE_DAILY_HISTORY} 
+        WHERE date IN (
+          SELECT MAX(date) 
+          FROM ${Config.DATABASE.TABLE_DAILY_HISTORY} 
+          WHERE date >= ? 
+          GROUP BY strftime('${pattern}', date)
+        )
+      `;
+    }
+
+    return await this.db.getAllAsync(`${query} ORDER BY date ${order} LIMIT ? OFFSET ?;`, [...params, limit, offset]);
   }
 
   /**
-   * Speichert einen neuen Eintrag in das Logbuch. 
-   * Der Rest (Snapshot-Update & Daily-History) passiert automatisch in der DB.
+   * Speichert einen neuen Eintrag in das Logbuch.
    */
   async saveAsset(provider, value, customTimestamp = null) {
     if (!this.db) await this.initialize();
@@ -130,26 +147,19 @@ class AssetRepository {
   }
 
   /**
-   * Führt einen kompletten Reset durch: Löscht alle Tabellen und Views.
+   * Führt einen kompletten Reset durch.
    */
   async clearAllData() {
     if (!this.db) await this.initialize();
     try {
       const { TABLE_ENTRIES, TABLE_DAILY_HISTORY, VIEW_SNAPSHOTS } = Config.DATABASE;
-      
-      // Harter Reset: Alles weg.
       await this.db.execAsync(`
         DROP TABLE IF EXISTS ${TABLE_ENTRIES};
         DROP TABLE IF EXISTS ${TABLE_DAILY_HISTORY};
-        DROP TABLE IF EXISTS asset_history_v2; -- Alte Tabelle aufräumen
-        DROP TABLE IF EXISTS snapshots;        -- Alte Tabelle aufräumen
         DROP VIEW IF EXISTS ${VIEW_SNAPSHOTS};
       `);
-      
-      // DB-Referenz zurücksetzen, damit initialize() alles neu aufbaut
       this.db = null;
       await this.initialize();
-      
       return true;
     } catch (error) {
       console.error("Repository: Fehler beim Full-Reset:", error);

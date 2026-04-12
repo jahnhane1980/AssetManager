@@ -1,7 +1,7 @@
 // App.js
 // Regel 0: Absolute Transparenz
 // Regel 6: Vollständiger Dateiinhalt
-// Refactoring: Anpassung der Speicherlogik für Batch-Eingaben und Zeitstempel
+// Refactoring: Automatische Zeitreihen-Aggregation für den Chart
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, ActivityIndicator } from 'react-native';
@@ -29,6 +29,7 @@ function MainContent() {
   const [portfolios, setPortfolios] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [currentTimeLimit, setCurrentTimeLimit] = useState(0);
+  const [currentAggregation, setCurrentAggregation] = useState('DAILY');
   
   // Modal Visibility
   const [isAddModalVisible, setAddModalVisible] = useState(false);
@@ -54,15 +55,28 @@ function MainContent() {
     if (!isReady) return;
 
     try {
-      // Holt die aktuellen Snapshots über die neue VIEW
       const currentSnapshots = await AssetRepository.getAllSnapshots();
       const currentTotal = currentSnapshots.reduce((sum, s) => sum + s.value, 0);
       
       setTotalValue(currentTotal);
       setPortfolios(currentSnapshots);
 
-      // Holt die Historie aus der neuen Aggregat-Tabelle
-      const historyResult = await AssetRepository.getHistory(currentTimeLimit);
+      // --- Aggregations-Logik basierend auf Zeitbereich ---
+      let agg = 'DAILY';
+      const now = Date.now();
+      const diffDays = (now - currentTimeLimit) / (1000 * 60 * 60 * 24);
+
+      if (currentTimeLimit === 0 || diffDays > 300) {
+        agg = 'MONTHLY'; // Für 'ALL' oder Zeiträume > 10 Monate
+      } else if (diffDays > 100) {
+        agg = 'WEEKLY';  // Für Zeiträume > 3 Monate
+      } else {
+        agg = 'DAILY';   // Bis zu 3 Monate
+      }
+      
+      setCurrentAggregation(agg);
+
+      const historyResult = await AssetRepository.getHistory(currentTimeLimit, 1000, 0, 'ASC', agg);
       setChartData(historyResult);
 
       if (historyResult.length >= 1) {
@@ -81,9 +95,6 @@ function MainContent() {
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
-  /**
-   * Erweitert um den optionalen Zeitstempel für historische Einträge.
-   */
   const handleSaveAsset = async (provider, value, timestamp) => {
     try {
       await AssetRepository.saveAsset(provider, value, timestamp);
@@ -95,7 +106,6 @@ function MainContent() {
 
   const handleDeleteAllData = async () => {
     try {
-      // Der Full-Reset droppt nun alle Tabellen/Views und baut sie neu auf
       await AssetRepository.clearAllData();
       setDeleteModalVisible(false);
       await refreshData();
@@ -123,6 +133,7 @@ function MainContent() {
       <ScrollView style={styles.content}>
         <Chart 
           data={chartData} 
+          aggregation={currentAggregation}
           onFilterChange={(limit) => setCurrentTimeLimit(limit)} 
         />
         <PortfolioList portfolios={portfolios} />

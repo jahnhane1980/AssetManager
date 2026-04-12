@@ -1,6 +1,6 @@
 // components/Chart.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: FontWeights auf Theme.js umgestellt
+// Refactoring: Anpassung an die neue Daily-History-Struktur
 
 import React, { useState } from 'react';
 import { View, Dimensions, StyleSheet, TouchableOpacity, Text } from 'react-native';
@@ -37,10 +37,15 @@ export default function Chart({ data, onFilterChange }) {
   };
 
   const renderChart = () => {
+    // Prüfung auf ausreichende Daten für eine Linie
     if (!data || data.length < 2) {
       return (
         <View style={[styles.chartArea, { justifyContent: 'center' }]}>
-          <Text style={{ color: Theme.colors.textSecondary }}>Nicht genügend Daten für den Zeitraum.</Text>
+          <Text style={styles.noDataText}>
+            {data && data.length === 1 
+              ? "Sammle mehr Daten für den Verlauf..." 
+              : "Keine Daten für diesen Zeitraum."}
+          </Text>
         </View>
       );
     }
@@ -48,11 +53,19 @@ export default function Chart({ data, onFilterChange }) {
     const values = data.map(d => d.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
-    const range = max - min || 1;
+    
+    // Kleiner Puffer oben und unten, damit die Linie nicht am Rand klebt
+    const range = (max - min) || 1;
+    const paddingBuffer = range * 0.1;
+    const adjMin = min - paddingBuffer;
+    const adjMax = max + paddingBuffer;
+    const adjRange = adjMax - adjMin;
 
     const points = data.map((d, i) => {
+      // X-Koordinate basierend auf dem Index (gleichmäßige Verteilung der Tage)
       const x = PADDING + (i * (SCREEN_WIDTH - PADDING * 5)) / (data.length - 1);
-      const y = HEIGHT - PADDING - ((d.value - min) / range) * (HEIGHT - PADDING * 2);
+      // Y-Koordinate invertiert (0 oben)
+      const y = HEIGHT - PADDING - ((d.value - adjMin) / adjRange) * (HEIGHT - PADDING * 2);
       return `${x},${y}`;
     });
 
@@ -116,6 +129,12 @@ const styles = StyleSheet.create({
     height: HEIGHT,
     width: '100%',
     alignItems: 'center'
+  },
+  noDataText: { 
+    color: Theme.colors.textSecondary,
+    fontSize: Theme.fontSize.caption,
+    textAlign: 'center',
+    paddingHorizontal: 20
   },
   filterRow: {
     flexDirection: 'row',

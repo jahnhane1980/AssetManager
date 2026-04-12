@@ -1,13 +1,17 @@
 // Security.js
 // Regel 6: Vollständiger Dateiinhalt
 // Regel 7: Fokus auf Struktur und Lesbarkeit
-// Refactoring: Nutzung von zentraler Config
+// Refactoring: Management der Seitengröße für Pagination hinzugefügt
 
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { Config } from '../constants/Config';
 
-const { MASTER_KEY, GEMINI_KEY } = Config.STORAGE_KEYS;
+const {
+  MASTER_KEY,
+  GEMINI_KEY,
+  PAGE_SIZE
+} = Config.STORAGE_KEYS;
 
 export const Security = {
   /**
@@ -16,15 +20,15 @@ export const Security = {
   getOrCreateMasterKey: async () => {
     try {
       let key = await SecureStore.getItemAsync(MASTER_KEY);
-      
+
       if (!key) {
         console.log("Generiere neuen Master-Key...");
-        key = Crypto.randomUUID(); 
+        key = Crypto.randomUUID();
         await SecureStore.setItemAsync(MASTER_KEY, key, {
           keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
         });
       }
-      
+
       return key;
     } catch (error) {
       console.error("Fehler beim Zugriff auf SecureStore:", error);
@@ -60,10 +64,36 @@ export const Security = {
   },
 
   /**
+   * Speichert die gewünschte Seitengröße für Listen.
+   */
+  setPageSize: async (size) => {
+    try {
+      await SecureStore.setItemAsync(PAGE_SIZE, size.toString());
+      return true;
+    } catch (error) {
+      console.error("Fehler beim Speichern der Seitengröße:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Holt die Seitengröße oder liefert den Standardwert zurück.
+   */
+  getPageSize: async () => {
+    try {
+      const size = await SecureStore.getItemAsync(PAGE_SIZE);
+      return size ? parseInt(size, 10) : Config.PAGINATION.DEFAULT_PAGE_SIZE;
+    } catch (error) {
+      console.error("Fehler beim Laden der Seitengröße:", error);
+      return Config.PAGINATION.DEFAULT_PAGE_SIZE;
+    }
+  },
+
+  /**
    * Ein einfacher Platzhalter für die Verschlüsselung eines Wertes.
    */
   encryptValue: (value, key) => {
-    return value; 
+    return value;
   },
 
   decryptValue: (encryptedValue, key) => {

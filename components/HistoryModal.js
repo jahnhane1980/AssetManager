@@ -1,8 +1,8 @@
 // components/HistoryModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Schließen-Icon Farbe auf Primärfarbe vereinheitlicht
+// Refactoring: Implementierung der Pagination und echten Datenanzeige
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -10,38 +10,140 @@ import {
   Modal, 
   TouchableOpacity, 
   ScrollView,
-  Platform 
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
+import AssetRepository from '../repositories/AssetRepository';
+import { Security } from './Security';
 
 export default function HistoryModal({ visible, onClose }) {
+  const [history, setHistory] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Laden der Daten
+  const fetchHistory = useCallback(async (page, size) => {
+    setIsLoading(true);
+    try {
+      const offset = (page - 1) * size;
+      // Wir holen "size + 1" Einträge, um zu prüfen, ob es eine nächste Seite gibt
+      const data = await AssetRepository.getHistory(0, size + 1, offset, 'DESC');
+      
+      if (data.length > size) {
+        setHasMore(true);
+        setHistory(data.slice(0, size));
+      } else {
+        setHasMore(false);
+        setHistory(data);
+      }
+    } catch (error) {
+      console.error("Fehler beim Laden der Historie:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Initiales Laden und bei Sichtbarkeit
+  useEffect(() => {
+    if (visible) {
+      const init = async () => {
+        const size = await Security.getPageSize();
+        setPageSize(size);
+        setCurrentPage(1);
+        await fetchHistory(1, size);
+      };
+      init();
+    }
+  }, [visible, fetchHistory]);
+
+  const handleNextPage = () => {
+    if (hasMore && !isLoading) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      fetchHistory(nextPage, pageSize);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1 && !isLoading) {
+      const prevPage = currentPage - 1;
+      setCurrentPage(prevPage);
+      fetchHistory(prevPage, pageSize);
+    }
+  };
+
+  const formatDate = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Vermögensverlauf</Text>
-          {/* Farbe auf Primärfarbe angepasst */}
           <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
             <Ionicons name="close" size={24} color={Theme.colors.primary} />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.dummyChart}>
-            <Ionicons name="analytics" size={64} color={Theme.colors.border} />
-            <Text style={styles.dummyText}>Hier kommt die detaillierte Historie hin.</Text>
+          <Text style={styles.sectionTitle}>Aktivitäten (Seite {currentPage})</Text>
+          
+          {isLoading ? (
+            <ActivityIndicator size="large" color={Theme.colors.primary} style={{ marginTop: 20 }} />
+          ) : history.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Keine Einträge vorhanden.</Text>
+            </View>
+          ) : (
+            <View style={styles.list}>
+              {history.map((item, index) => (
+                <View key={item.timestamp || index} style={styles.historyItem}>
+                  <View style={styles.itemInfo}>
+                    <Ionicons name="time-outline" size={18} color={Theme.colors.textSecondary} style={styles.icon} />
+                    <Text style={styles.dateText}>{formatDate(item.timestamp)}</Text>
+                  </View>
+                  <Text style={styles.valueText}>
+                    {item.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Pagination Controls */}
+          <View style={styles.pagination}>
+            <TouchableOpacity 
+              style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]} 
+              onPress={handlePrevPage}
+              disabled={currentPage === 1 || isLoading}
+            >
+              <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? Theme.colors.border : Theme.colors.white} />
+              <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>Zurück</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.pageBtn, !hasMore && styles.pageBtnDisabled]} 
+              onPress={handleNextPage}
+              disabled={!hasMore || isLoading}
+            >
+              <Text style={[styles.pageBtnText, !hasMore && styles.pageBtnTextDisabled]}>Weiter</Text>
+              <Ionicons name="chevron-forward" size={20} color={!hasMore ? Theme.colors.border : Theme.colors.white} />
+            </TouchableOpacity>
           </View>
           
-          <Text style={styles.sectionTitle}>Letzte Aktivitäten</Text>
-          <View style={styles.dummyList}>
-            {[1, 2, 3].map(i => (
-              <View key={i} style={styles.dummyItem}>
-                <Ionicons name="time-outline" size={20} color={Theme.colors.textSecondary} style={{marginRight: 10}} />
-                <Text style={styles.itemText}>Dummy Eintrag #{i} - Daten folgen</Text>
-              </View>
-            ))}
-          </View>
+          <View style={{ height: 40 }} />
         </ScrollView>
       </View>
     </Modal>
@@ -62,22 +164,45 @@ const styles = StyleSheet.create({
     borderBottomColor: Theme.colors.border 
   },
   headerTitle: { fontSize: Theme.fontSize.header, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  closeBtnContainer: { padding: 5 }, // Style-Name vereinheitlicht
+  closeBtnContainer: { padding: 5 },
   content: { padding: Theme.spacing.l },
-  dummyChart: { 
-    height: 200, 
-    backgroundColor: Theme.colors.surface, 
-    borderRadius: Theme.borderRadius.m, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    marginBottom: Theme.spacing.l,
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-    borderStyle: 'dashed'
-  },
-  dummyText: { marginTop: 15, color: Theme.colors.textSecondary, textAlign: 'center' },
   sectionTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.semibold, color: Theme.colors.text, marginBottom: Theme.spacing.m },
-  dummyList: { gap: Theme.spacing.s },
-  dummyItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.colors.surface, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.s },
-  itemText: { color: Theme.colors.text }
+  list: { gap: Theme.spacing.s },
+  historyItem: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    backgroundColor: Theme.colors.surface, 
+    padding: Theme.spacing.m, 
+    borderRadius: Theme.borderRadius.m,
+    elevation: 1,
+    shadowColor: Theme.colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  itemInfo: { flexDirection: 'row', alignItems: 'center' },
+  icon: { marginRight: 8 },
+  dateText: { color: Theme.colors.textSecondary, fontSize: Theme.fontSize.caption },
+  valueText: { color: Theme.colors.text, fontWeight: Theme.fontWeight.bold, fontSize: Theme.fontSize.body },
+  emptyContainer: { padding: 40, alignItems: 'center' },
+  emptyText: { color: Theme.colors.textSecondary, fontStyle: 'italic' },
+  pagination: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginTop: Theme.spacing.xl,
+    gap: Theme.spacing.m 
+  },
+  pageBtn: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    backgroundColor: Theme.colors.primary, 
+    padding: Theme.spacing.m, 
+    borderRadius: Theme.borderRadius.m, 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  pageBtnDisabled: { backgroundColor: Theme.colors.border },
+  pageBtnText: { color: Theme.colors.white, fontWeight: Theme.fontWeight.bold, marginHorizontal: 5 },
+  pageBtnTextDisabled: { color: Theme.colors.textSecondary }
 });

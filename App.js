@@ -1,7 +1,7 @@
 // App.js
 // Regel 0: Absolute Transparenz
 // Regel 6: Vollständiger Dateiinhalt
-// Refactoring: Integration des DeleteConfirmationModals
+// Refactoring: Anpassung der Speicherlogik für Batch-Eingaben und Zeitstempel
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, ScrollView, ActivityIndicator } from 'react-native';
@@ -17,7 +17,7 @@ import AddAssetModal from './components/AddAssetModal';
 import SettingsModal from './components/SettingsModal';
 import MenuModal from './components/MenuModal';
 import HistoryModal from './components/HistoryModal';
-import DeleteConfirmationModal from './components/DeleteConfirmationModal'; // Neu
+import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 
 function MainContent() {
   const insets = useSafeAreaInsets();
@@ -35,7 +35,7 @@ function MainContent() {
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [isSettingsVisible, setSettingsVisible] = useState(false);
   const [isHistoryVisible, setHistoryVisible] = useState(false);
-  const [isDeleteModalVisible, setDeleteModalVisible] = useState(false); // Neu
+  const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
 
   useEffect(() => {
     async function initApp() {
@@ -54,12 +54,14 @@ function MainContent() {
     if (!isReady) return;
 
     try {
+      // Holt die aktuellen Snapshots über die neue VIEW
       const currentSnapshots = await AssetRepository.getAllSnapshots();
       const currentTotal = currentSnapshots.reduce((sum, s) => sum + s.value, 0);
       
       setTotalValue(currentTotal);
       setPortfolios(currentSnapshots);
 
+      // Holt die Historie aus der neuen Aggregat-Tabelle
       const historyResult = await AssetRepository.getHistory(currentTimeLimit);
       setChartData(historyResult);
 
@@ -70,7 +72,6 @@ function MainContent() {
           percent: first !== 0 ? ((currentTotal - first) / first) * 100 : 0 
         });
       } else {
-        // Reset Performance wenn keine Historie da ist
         setPerformance({ nominal: 0, percent: 0 });
       }
     } catch (error) {
@@ -80,9 +81,12 @@ function MainContent() {
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
-  const handleSaveAsset = async (provider, value) => {
+  /**
+   * Erweitert um den optionalen Zeitstempel für historische Einträge.
+   */
+  const handleSaveAsset = async (provider, value, timestamp) => {
     try {
-      await AssetRepository.saveAsset(provider, value);
+      await AssetRepository.saveAsset(provider, value, timestamp);
       await refreshData();
     } catch (error) {
       console.error("Speicherfehler:", error);
@@ -91,6 +95,7 @@ function MainContent() {
 
   const handleDeleteAllData = async () => {
     try {
+      // Der Full-Reset droppt nun alle Tabellen/Views und baut sie neu auf
       await AssetRepository.clearAllData();
       setDeleteModalVisible(false);
       await refreshData();
@@ -109,14 +114,12 @@ function MainContent() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* 1. Header: Gesamtwert & Menü-Trigger */}
       <TotalValueHeader 
         totalValue={totalValue} 
         performance={performance} 
         onMenuPress={() => setMenuVisible(true)} 
       />
 
-      {/* 2. Content: Chart & Asset-Liste */}
       <ScrollView style={styles.content}>
         <Chart 
           data={chartData} 
@@ -125,10 +128,8 @@ function MainContent() {
         <PortfolioList portfolios={portfolios} />
       </ScrollView>
 
-      {/* 3. Action: Floating Button zum Hinzufügen */}
       <AddAssetButton onPress={() => setAddModalVisible(true)} />
 
-      {/* 4. Overlays: Dialoge und Einstellungen */}
       <AddAssetModal 
         visible={isAddModalVisible} 
         onClose={() => setAddModalVisible(false)} 

@@ -1,8 +1,8 @@
-// AddAssetModal.js
+// components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: FontWeights auf Theme.js umgestellt
+// Refactoring: Fix der React-Hook Dependencies (useEffect) & Stabilität durch useCallback.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -13,7 +13,6 @@ import {
   ScrollView, 
   KeyboardAvoidingView, 
   Platform, 
-  Image, 
   ActivityIndicator 
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,48 +23,74 @@ import { Config } from '../constants/Config';
 import { AppConstants } from '../constants/AppConstants';
 
 export default function AddAssetModal({ visible, onClose, onSave }) {
-  const [step, setStep] = useState(1); 
-  const [selectedProvider, setSelectedProvider] = useState(null);
-  const [inputValue, setInputValue] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [selectedImage, setSelectedImage] = useState(null);
+  // --- State ---
+  const [rows, setRows] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [hasApiKey, setHasApiKey] = useState(false);
 
+  // Hilfs-States für "Select-Boxen"
+  const [activeRowId, setActiveRowId] = useState(null);
+  const [showProviderPicker, setShowProviderPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // --- Stabilisierte Funktionen ---
+
+  const checkKeyStatus = useCallback(async () => {
+    const key = await Security.getGeminiKey();
+    setHasApiKey(!!key);
+  }, []);
+
+  const addEmptyRow = useCallback(() => {
+    const newRow = {
+      id: Date.now() + Math.random(),
+      provider: AppConstants.PROVIDERS[0],
+      value: '',
+      timestamp: Date.now(),
+      status: 'manual', // 'manual', 'processing', 'ai-done'
+      isConfirmed: false
+    };
+    setRows(prev => [...prev, newRow]);
+  }, []);
+
+  const removeRow = useCallback((id) => {
+    setRows(prev => {
+      if (prev.length > 1) {
+        return prev.filter(r => r.id !== id);
+      }
+      return prev;
+    });
+  }, []);
+
+  const updateRow = useCallback((id, fields) => {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
+  }, []);
+
+  const resetAndClose = useCallback(() => {
+    setRows([]);
+    setErrorMessage(null);
+    onClose();
+  }, [onClose]);
+
+  // --- Initialisierung ---
   useEffect(() => {
     if (visible) {
       checkKeyStatus();
+      if (rows.length === 0) {
+        addEmptyRow();
+      }
     }
-  }, [visible]);
+  }, [visible, checkKeyStatus, addEmptyRow, rows.length]);
 
-  const checkKeyStatus = async () => {
-    const key = await Security.getGeminiKey();
-    setHasApiKey(!!key);
-  };
-
-  const resetAndClose = () => {
-    setStep(1);
-    setSelectedProvider(null);
-    setInputValue('');
-    setSelectedImage(null);
-    setIsProcessing(false);
-    setRetryCount(0);
-    setErrorMessage(null);
-    onClose();
-  };
-
-  const handlePickImage = async () => {
+  // --- KI Logik ---
+  const handlePickImage = async (rowId) => {
     if (!hasApiKey) {
-      setErrorMessage("Bitte hinterlege zuerst deinen API-Key im Menü unter 'Einstellungen'.");
+      setErrorMessage("Bitte API-Key in den Einstellungen hinterlegen.");
       return;
     }
 
     const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!granted) {
-      setErrorMessage("Zugriff verweigert. Bitte in den Einstellungen erlauben.");
-      return;
-    }
+    if (!granted) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -74,165 +99,226 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     });
 
     if (!result.canceled) {
-      const asset = result.assets[0];
-      setSelectedImage(asset.uri);
-      processImageWithGemini(asset.base64);
+      processImage(rowId, result.assets[0].base64);
     }
   };
 
-  const processImageWithGemini = async (base64Data) => {
-    setIsProcessing(true);
-    setStep(4);
-    setRetryCount(0);
+  const processImage = async (rowId, base64Data) => {
+    updateRow(rowId, { status: 'processing' });
+    const currentRow = rows.find(r => r.id === rowId);
+    const provider = currentRow ? currentRow.provider : AppConstants.PROVIDERS[0];
     
-    const apiKey = await Security.getGeminiKey();
-    const performRequest = async (attempt) => {
-      setRetryCount(attempt);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), AppConstants.AI_PROCESSING.TIMEOUT_MS);
+    try {
+      const apiKey = await Security.getGeminiKey();
+      const { BASE_URL, MODEL, ENDPOINT } = Config.GEMINI_API;
+      const apiUrl = `${BASE_URL}/${MODEL}:${ENDPOINT}?key=${apiKey}`;
 
-      try {
-        const { BASE_URL, MODEL, ENDPOINT } = Config.GEMINI_API;
-        const apiUrl = `${BASE_URL}/${MODEL}:${ENDPOINT}?key=${apiKey}`;
-        
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: AppConstants.PROMPTS.ASSET_EXTRACTION(selectedProvider) },
-                { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-              ]
-            }]
-          })
-        });
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: AppConstants.PROMPTS.ASSET_EXTRACTION(provider) },
+              { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+            ]
+          }]
+        })
+      });
 
-        clearTimeout(timeoutId);
-        if (!response.ok) throw new Error(`API Fehler ${response.status}`);
+      const result = await response.json();
+      const detectedText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      
+      if (detectedText) {
+        updateRow(rowId, { value: detectedText, status: 'ai-done' });
+      } else {
+        throw new Error("Nichts erkannt");
+      }
+    } catch (error) {
+      setErrorMessage("KI Fehler: " + error.message);
+      updateRow(rowId, { status: 'manual' });
+    }
+  };
 
-        const result = await response.json();
-        const detectedText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (!detectedText) throw new Error("Keine Daten erkannt.");
-
-        setInputValue(detectedText);
-        setIsProcessing(false);
-      } catch (error) {
-        clearTimeout(timeoutId);
-        if (attempt < AppConstants.AI_PROCESSING.MAX_RETRIES && error.name === 'AbortError') {
-          return performRequest(attempt + 1);
-        } else {
-          setErrorMessage(error.message);
-          setIsProcessing(false);
-          setStep(2);
+  // --- Speichern ---
+  const handleSaveAll = async () => {
+    setIsSubmitting(true);
+    try {
+      for (const row of rows) {
+        const sanitized = row.value.replace(/\./g, '').replace(',', '.');
+        const val = parseFloat(sanitized);
+        if (!isNaN(val)) {
+          await onSave(row.provider, val, row.timestamp);
         }
       }
-    };
-    performRequest(1);
+      resetAndClose();
+    } catch (error) {
+      setErrorMessage("Fehler beim Speichern der Batch-Daten.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleSave = () => {
-    const sanitizedValue = inputValue.replace(/\./g, '').replace(',', '.');
-    const finalValue = parseFloat(sanitizedValue);
-    if (isNaN(finalValue)) {
-      setErrorMessage("Ungültiger Betrag.");
-      return;
-    }
-    onSave(selectedProvider, finalValue);
-    resetAndClose();
+  // --- Helper Render ---
+  const formatDate = (ts) => {
+    const d = new Date(ts);
+    return d.toLocaleDateString('de-DE');
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
       <View style={styles.overlay}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalContainer}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : "height"} 
+          style={styles.modalContainer}
+        >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{selectedProvider || 'Hinzufügen'}</Text>
-            <TouchableOpacity onPress={resetAndClose} style={styles.closeBtnContainer}>
+            <Text style={styles.headerTitle}>Werte erfassen</Text>
+            <TouchableOpacity onPress={resetAndClose} style={styles.closeBtn}>
               <Ionicons name="close" size={24} color={Theme.colors.primary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            {step === 1 && (
-              <View>
-                <Text style={styles.label}>Anbieter wählen:</Text>
-                {AppConstants.PROVIDERS.map(p => (
-                  <TouchableOpacity key={p} style={styles.providerCard} onPress={() => { setSelectedProvider(p); setStep(2); }}>
-                    <Text style={styles.providerText}>{p}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+          <ScrollView style={styles.scrollArea}>
+            {rows.map((row) => (
+              <View key={row.id} style={styles.rowCard}>
+                <View style={styles.rowMain}>
+                  <View style={styles.selectors}>
+                    <TouchableOpacity 
+                      style={styles.selectorBtn} 
+                      onPress={() => { setActiveRowId(row.id); setShowProviderPicker(true); }}
+                    >
+                      <Text style={styles.selectorText} numberOfLines={1}>{row.provider}</Text>
+                      <Ionicons name="chevron-down" size={14} color={Theme.colors.primary} />
+                    </TouchableOpacity>
 
-            {step === 2 && (
-              <View>
-                <Text style={styles.label}>Eingabe für {selectedProvider}:</Text>
-                
-                <TouchableOpacity style={styles.methodBtn} onPress={handlePickImage}>
-                  <Ionicons name="camera-outline" size={20} color={Theme.colors.white} style={styles.methodIcon} />
-                  <Text style={styles.methodBtnText}>Screenshot analysieren</Text>
-                </TouchableOpacity>
-                
-                {!hasApiKey && (
-                  <View style={styles.hintContainer}>
-                    <Ionicons name="warning-outline" size={16} color={Theme.colors.error} style={{marginRight: 5}} />
-                    <Text style={styles.hint}>API-Key fehlt! (Siehe App-Menü)</Text>
+                    <TouchableOpacity 
+                      style={styles.selectorBtn}
+                      onPress={() => { setActiveRowId(row.id); setShowDatePicker(true); }}
+                    >
+                      <Text style={styles.selectorText}>{formatDate(row.timestamp)}</Text>
+                      <Ionicons name="calendar-outline" size={14} color={Theme.colors.primary} />
+                    </TouchableOpacity>
                   </View>
+
+                  <View style={styles.inputArea}>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        row.status === 'ai-done' && styles.aiInput,
+                        row.status === 'processing' && styles.loadingInput
+                      ]}
+                      value={row.value}
+                      onChangeText={(v) => updateRow(row.id, { value: v, status: 'manual' })}
+                      placeholder="0,00"
+                      keyboardType="numeric"
+                    />
+                    
+                    <TouchableOpacity 
+                      style={styles.aiBtn} 
+                      onPress={() => handlePickImage(row.id)}
+                      disabled={row.status === 'processing'}
+                    >
+                      {row.status === 'processing' ? (
+                        <ActivityIndicator size="small" color={Theme.colors.primary} />
+                      ) : (
+                        <Ionicons 
+                          name="camera-outline" 
+                          size={24} 
+                          color={row.status === 'ai-done' ? Theme.colors.success : Theme.colors.primary} 
+                        />
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => removeRow(row.id)} style={styles.deleteRowBtn}>
+                      <Ionicons name="trash-outline" size={20} color={Theme.colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {row.status === 'ai-done' && (
+                  <Text style={styles.aiHint}>KI-Ergebnis – bitte prüfen!</Text>
                 )}
-                
-                <TouchableOpacity style={[styles.methodBtn, styles.manualBtn]} onPress={() => setStep(3)}>
-                  <Ionicons name="keypad-outline" size={20} color={Theme.colors.white} style={styles.methodIcon} />
-                  <Text style={styles.methodBtnText}>Manuelle Eingabe</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity onPress={() => setStep(1)} style={styles.backBtnContainer}>
-                   <Ionicons name="arrow-back" size={16} color={Theme.colors.textSecondary} style={{marginRight: 5}} />
-                   <Text style={styles.backBtnText}>Zurück</Text>
-                </TouchableOpacity>
               </View>
-            )}
+            ))}
 
-            {(step === 3 || (step === 4 && !isProcessing)) && (
-              <View>
-                <Text style={styles.label}>{step === 4 ? "KI-Ergebnis:" : "Betrag:"}</Text>
-                <TextInput 
-                  style={[styles.input, step === 4 && styles.reviewInput]}
-                  value={inputValue}
-                  onChangeText={setInputValue}
-                  keyboardType="numeric"
-                  placeholder="0,00"
-                  autoFocus={step === 3}
-                />
-                {selectedImage && step === 4 && <Image source={{ uri: selectedImage }} style={styles.previewImage} />}
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                  <Text style={styles.saveBtnText}>Speichern</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {isProcessing && (
-              <View style={styles.loadingArea}>
-                <ActivityIndicator size="large" color={Theme.colors.primary} />
-                <Text style={styles.loadingText}>Analysiere Bild...</Text>
-              </View>
-            )}
+            <TouchableOpacity style={styles.addBtn} onPress={addEmptyRow}>
+              <Ionicons name="add-circle-outline" size={24} color={Theme.colors.textSecondary} />
+              <Text style={styles.addBtnText}>Weiteren Provider hinzufügen</Text>
+            </TouchableOpacity>
+            
+            <View style={{ height: 40 }} />
           </ScrollView>
+
+          <View style={styles.footer}>
+            <TouchableOpacity 
+              style={[styles.saveAllBtn, isSubmitting && styles.disabledBtn]} 
+              onPress={handleSaveAll}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.saveAllBtnText}>Alle Werte speichern</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
 
-        {errorMessage && (
-          <View style={styles.errorContainer}>
-            <View style={styles.errorDialog}>
-              <View style={styles.errorHeader}>
-                 <Ionicons name="information-circle-outline" size={24} color={Theme.colors.text} style={{marginRight: 10}} />
-                 <Text style={styles.errorTitle}>Hinweis</Text>
-              </View>
-              <Text style={styles.errorMessage}>{errorMessage}</Text>
-              <TouchableOpacity style={styles.errorBtn} onPress={() => setErrorMessage(null)}>
-                <Text style={styles.errorBtnText}>OK</Text>
-              </TouchableOpacity>
+        {/* --- Sub-Modals für Selektion --- */}
+        
+        <Modal visible={showProviderPicker} transparent={true} animationType="fade">
+          <TouchableOpacity 
+            style={styles.subOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowProviderPicker(false)}
+          >
+            <View style={styles.pickerContent}>
+              <Text style={styles.pickerTitle}>Anbieter wählen</Text>
+              {AppConstants.PROVIDERS.map(p => (
+                <TouchableOpacity 
+                  key={p} 
+                  style={styles.pickerItem} 
+                  onPress={() => { updateRow(activeRowId, { provider: p }); setShowProviderPicker(false); }}
+                >
+                  <Text style={styles.pickerItemText}>{p}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
+          </TouchableOpacity>
+        </Modal>
+
+        <Modal visible={showDatePicker} transparent={true} animationType="fade">
+          <TouchableOpacity 
+            style={styles.subOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowDatePicker(false)}
+          >
+            <View style={styles.pickerContent}>
+              <Text style={styles.pickerTitle}>Datum wählen</Text>
+              {[0, 1, 2, 3, 7].map(daysBack => {
+                const d = new Date();
+                d.setDate(d.getDate() - daysBack);
+                const label = daysBack === 0 ? "Heute" : daysBack === 1 ? "Gestern" : `${daysBack} Tage her`;
+                return (
+                  <TouchableOpacity 
+                    key={daysBack} 
+                    style={styles.pickerItem} 
+                    onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePicker(false); }}
+                  >
+                    <Text style={styles.pickerItemText}>{label} ({formatDate(d.getTime())})</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        {errorMessage && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+            <TouchableOpacity onPress={() => setErrorMessage(null)}>
+              <Ionicons name="close-circle" size={20} color="#fff" />
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -242,34 +328,34 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: Theme.colors.overlay, justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: Theme.colors.surface, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, minHeight: '40%', maxHeight: '85%' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },
+  modalContainer: { backgroundColor: Theme.colors.background, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, height: '90%' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },
   headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  closeBtnContainer: { padding: 5 },
-  scrollContent: { padding: Theme.spacing.l },
-  label: { fontSize: Theme.fontSize.body, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m },
-  providerCard: { padding: Theme.spacing.m, borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.s },
-  providerText: { fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.medium, color: Theme.colors.text },
-  methodBtn: { flexDirection: 'row', backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center', justifyContent: 'center', marginBottom: Theme.spacing.s },
-  methodIcon: { marginRight: 10 },
-  manualBtn: { backgroundColor: Theme.colors.text },
-  methodBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.semibold },
-  hintContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  hint: { color: Theme.colors.error, fontSize: Theme.fontSize.hint, fontWeight: Theme.fontWeight.bold },
-  backBtnContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: Theme.spacing.m },
-  backBtnText: { color: Theme.colors.textSecondary },
-  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: Theme.fontSize.display, textAlign: 'center', marginBottom: Theme.spacing.l, color: Theme.colors.text },
-  reviewInput: { borderColor: Theme.colors.primary, color: Theme.colors.primary, fontWeight: Theme.fontWeight.bold },
-  saveBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
-  saveBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold },
-  loadingArea: { padding: 40, alignItems: 'center' },
-  loadingText: { marginTop: 10, color: Theme.colors.textSecondary },
-  previewImage: { width: '100%', height: 180, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.l, resizeMode: 'contain' },
-  errorContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: Theme.colors.overlayStrong, justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-  errorDialog: { width: '80%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.m, padding: Theme.spacing.l, alignItems: 'center' },
-  errorHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  errorTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  errorMessage: { fontSize: Theme.fontSize.body, color: Theme.colors.textSecondary, textAlign: 'center', marginBottom: 20 },
-  errorBtn: { backgroundColor: Theme.colors.primary, paddingVertical: 10, paddingHorizontal: 30, borderRadius: Theme.borderRadius.m },
-  errorBtnText: { color: Theme.colors.white, fontWeight: Theme.fontWeight.bold }
+  closeBtn: { padding: 5 },
+  scrollArea: { padding: Theme.spacing.m },
+  rowCard: { backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.m, padding: Theme.spacing.m, marginBottom: Theme.spacing.m, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+  rowMain: { gap: 10 },
+  selectors: { flexDirection: 'row', gap: 10 },
+  selectorBtn: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.colors.background, padding: 8, borderRadius: Theme.borderRadius.s, borderWidth: 1, borderColor: Theme.colors.border },
+  selectorText: { fontSize: Theme.fontSize.caption, color: Theme.colors.text, fontWeight: Theme.fontWeight.medium },
+  inputArea: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  input: { flex: 1, backgroundColor: Theme.colors.background, padding: 10, borderRadius: Theme.borderRadius.s, fontSize: Theme.fontSize.header, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text, textAlign: 'right', borderWidth: 1, borderColor: Theme.colors.border },
+  aiInput: { borderColor: Theme.colors.primary, backgroundColor: '#f0f7ff' },
+  loadingInput: { opacity: 0.5 },
+  aiBtn: { padding: 5 },
+  deleteRowBtn: { padding: 5 },
+  aiHint: { fontSize: 10, color: Theme.colors.primary, marginTop: 5, fontWeight: Theme.fontWeight.semibold, textAlign: 'right' },
+  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: Theme.spacing.l, gap: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginTop: 5 },
+  addBtnText: { color: Theme.colors.textSecondary, fontWeight: Theme.fontWeight.medium },
+  footer: { padding: Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopWidth: 1, borderTopColor: Theme.colors.border },
+  saveAllBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
+  saveAllBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold },
+  disabledBtn: { opacity: 0.6 },
+  subOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  pickerContent: { width: '80%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l },
+  pickerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, marginBottom: Theme.spacing.m, textAlign: 'center' },
+  pickerItem: { paddingVertical: Theme.spacing.m, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
+  pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' },
+  errorBanner: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: Theme.colors.error, padding: 10, borderRadius: Theme.borderRadius.m, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 9999 },
+  errorText: { color: '#fff', fontSize: Theme.fontSize.caption, flex: 1 }
 });

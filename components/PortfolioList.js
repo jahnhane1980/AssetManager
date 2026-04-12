@@ -1,27 +1,56 @@
 // components/PortfolioList.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Styles auf Theme.js (inkl. FontWeights) umgestellt
+// Refactoring: Zeigt alle definierten Provider mit Standardwert 0,00 € an, falls keine Daten vorliegen
 
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Theme } from './Theme';
+import { AppConstants } from '../constants/AppConstants';
 
 export default function PortfolioList({ portfolios }) {
-  if (!portfolios || portfolios.length === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Noch keine Portfolios angelegt.</Text>
-      </View>
-    );
-  }
+  // Hilfsfunktion zur Datumsformatierung
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  /**
+   * Wir mappen über die vordefinierten Provider aus den AppConstants.
+   * Wenn Daten in 'portfolios' (aus der DB) existieren, nehmen wir diese.
+   * Andernfalls erstellen wir einen Default-Eintrag mit 0,00 €.
+   */
+  const displayPortfolios = AppConstants.PROVIDERS.map(providerName => {
+    const existingData = portfolios.find(p => p.provider === providerName);
+    
+    if (existingData) {
+      return existingData;
+    }
+
+    // Fallback für Provider ohne Datenbank-Eintrag
+    return {
+      provider: providerName,
+      value: 0,
+      timestamp: Date.now()
+    };
+  });
 
   return (
     <View style={styles.container}>
-      <Text style={styles.subTitle}>Deine Portfolios</Text>
-      {portfolios.map((p, i) => (
+      <Text style={styles.subTitle}>Aktueller Stand pro Anbieter</Text>
+      {displayPortfolios.map((p, i) => (
         <View key={i} style={styles.card}>
           <View style={styles.row}>
-            <Text style={styles.providerName}>{p.provider}</Text>
+            <View style={styles.infoColumn}>
+              <Text style={styles.providerName}>{p.provider}</Text>
+              <Text style={styles.dateText}>Stand: {formatDate(p.timestamp)}</Text>
+            </View>
             <Text style={styles.providerValue}>
               {p.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
             </Text>
@@ -51,25 +80,25 @@ const styles = StyleSheet.create({
   },
   row: { 
     flexDirection: 'row', 
-    justifyContent: 'space-between' 
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  infoColumn: {
+    flex: 1,
   },
   providerName: { 
     fontSize: Theme.fontSize.body, 
     fontWeight: Theme.fontWeight.medium,
     color: Theme.colors.text
   },
+  dateText: {
+    fontSize: Theme.fontSize.hint,
+    color: Theme.colors.textSecondary,
+    marginTop: 2
+  },
   providerValue: { 
     fontSize: Theme.fontSize.body, 
     fontWeight: Theme.fontWeight.bold,
     color: Theme.colors.text
-  },
-  emptyContainer: {
-    padding: Theme.spacing.l,
-    alignItems: 'center'
-  },
-  emptyText: {
-    color: Theme.colors.textSecondary,
-    fontStyle: 'italic',
-    fontSize: Theme.fontSize.body
   }
 });

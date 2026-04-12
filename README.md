@@ -1,11 +1,46 @@
-# Sample Snack app
+# AssetManager
 
-Open the `App.js` file to start writing some code. You can preview the changes directly on your phone or tablet by scanning the **QR code** or use the iOS or Android emulators. When you're done, click **Save** and share the link!
+Ein leistungsstarker, privater Finanz-Tracker für React Native (Expo), mit dem du dein Gesamtvermögen über verschiedene Anbieter hinweg im Blick behältst. Die App kombiniert lokale Datensicherheit mit moderner KI-Analyse und dynamischer Visualisierung.
 
-When you're ready to see everything that Expo provides (or if you want to use your own editor) you can **Download** your project and use it with [expo cli](https://docs.expo.dev/get-started/installation/#expo-cli)).
+## 🚀 Hauptfunktionen
 
-All projects created in Snack are publicly available, so you can easily share the link to this project via link, or embed it on a web page with the `<>` button.
+* **Zentrales Dashboard**: Anzeige des Gesamtvermögens und der Performance (nominal und prozentual) auf einen Blick.
+* **KI-gestützte Erfassung**: Automatische Extraktion von Portfoliowerten aus Screenshots mittels Gemini AI (Google Generative AI).
+* **Dynamische Charts**: Visualisierung deines Vermögensverlaufs mit automatischer Aggregation (Täglich, Wöchentlich, Monatlich) je nach Zeitbereich.
+* **Visualisierungs-Modi**: Flexibler Wechsel zwischen Linien- und Balkendiagrammen direkt in der App.
+* **Lokale Datenbank**: Vollständige Offline-Verwaltung deiner Daten mit SQLite, inklusive automatischer Trigger für die Historien-Berechnung.
+* **Sicherheit & Datenschutz**: Sicherer Speicher (SecureStore) für API-Keys und kryptographische Master-Keys direkt auf deinem Gerät.
+* **Batch-Eingabe**: Erfassung mehrerer Provider-Werte gleichzeitig inklusive historischer Zeitstempel.
 
-If you're having problems, you can tweet to us [@expo](https://twitter.com/expo) or ask in our [forums](https://forums.expo.dev/c/expo-dev-tools/61) or [Discord](https://chat.expo.dev/).
+## 🛠 Tech-Stack
 
-Snack is Open Source. You can find the code on the [GitHub repo](https://github.com/expo/snack).
+* **Framework**: React Native mit Expo.
+* **Datenbank**: Expo SQLite (mit VIEWs und TRIGGERN für Performance).
+* **KI-Integration**: Google Gemini AI API.
+* **Grafik**: React Native SVG für die Diagramme.
+* **Styling**: Zentrales Theme-System für konsistentes Design.
+
+## 📋 Unterstützte Anbieter
+
+Die App ist aktuell für folgende Anbieter vorkonfiguriert:
+* C24
+* Norisbank
+* Trading 212
+* Bitget
+* Timeless
+
+## ⚙️ Installation & Setup
+
+1.  **Abhängigkeiten installieren**:
+    ```bash
+    npm install
+    ```
+2.  **App starten**:
+    ```bash
+    npx expo start
+    ```
+3.  **KI-Funktion aktivieren**: Hinterlege deinen Gemini API-Key in den App-Einstellungen, um die automatische Screenshot-Analyse zu nutzen.
+
+## 🔐 Datenschutz
+
+Deine Finanzdaten sind sensibel. Deshalb speichert der AssetManager alle Buchungen und Bestände ausschließlich lokal in einer SQLite-Datenbank auf deinem Smartphone. Es findet kein Cloud-Sync deiner Vermögenswerte statt.

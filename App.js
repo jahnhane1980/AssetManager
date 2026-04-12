@@ -1,9 +1,8 @@
 // App.js
-// Regel 0: Absolute Transparenz
-// Regel 6: Vollständiger Dateiinhalt
-// Refactoring: Automatische Zeitreihen-Aggregation für den Chart
+// Regel 0: Absolute Transparenz | Regel 6: Vollständiger Dateiinhalt
+// Refactoring: Nutzung des Custom Hooks usePortfolioData
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Theme } from './components/Theme';
@@ -19,19 +18,25 @@ import MenuModal from './components/MenuModal';
 import HistoryModal from './components/HistoryModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 
+// Importiere den neuen Hook (Pfad anpassen falls nötig)
+import { usePortfolioData } from './hooks/usePortfolioData';
+
 function MainContent() {
   const insets = useSafeAreaInsets();
   const [isReady, setIsReady] = useState(false);
-  
-  // State Management
-  const [totalValue, setTotalValue] = useState(0);
-  const [performance, setPerformance] = useState({ nominal: 0, percent: 0 });
-  const [portfolios, setPortfolios] = useState([]);
-  const [chartData, setChartData] = useState([]);
   const [currentTimeLimit, setCurrentTimeLimit] = useState(0);
-  const [currentAggregation, setCurrentAggregation] = useState('DAILY');
   
-  // Modal Visibility
+  // Custom Hook nutzt den lokalen State (isReady, timeLimit)
+  const { 
+    totalValue, 
+    performance, 
+    portfolios, 
+    chartData, 
+    aggregation, 
+    refresh 
+  } = usePortfolioData(isReady, currentTimeLimit);
+  
+  // Modal Visibility State
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [isSettingsVisible, setSettingsVisible] = useState(false);
@@ -51,54 +56,10 @@ function MainContent() {
     initApp();
   }, []);
 
-  const refreshData = useCallback(async () => {
-    if (!isReady) return;
-
-    try {
-      const currentSnapshots = await AssetRepository.getAllSnapshots();
-      const currentTotal = currentSnapshots.reduce((sum, s) => sum + s.value, 0);
-      
-      setTotalValue(currentTotal);
-      setPortfolios(currentSnapshots);
-
-      // --- Aggregations-Logik basierend auf Zeitbereich ---
-      let agg = 'DAILY';
-      const now = Date.now();
-      const diffDays = (now - currentTimeLimit) / (1000 * 60 * 60 * 24);
-
-      if (currentTimeLimit === 0 || diffDays > 300) {
-        agg = 'MONTHLY'; // Für 'ALL' oder Zeiträume > 10 Monate
-      } else if (diffDays > 100) {
-        agg = 'WEEKLY';  // Für Zeiträume > 3 Monate
-      } else {
-        agg = 'DAILY';   // Bis zu 3 Monate
-      }
-      
-      setCurrentAggregation(agg);
-
-      const historyResult = await AssetRepository.getHistory(currentTimeLimit, 1000, 0, 'ASC', agg);
-      setChartData(historyResult);
-
-      if (historyResult.length >= 1) {
-        const first = historyResult[0].value;
-        setPerformance({ 
-          nominal: currentTotal - first, 
-          percent: first !== 0 ? ((currentTotal - first) / first) * 100 : 0 
-        });
-      } else {
-        setPerformance({ nominal: 0, percent: 0 });
-      }
-    } catch (error) {
-      console.error("Fehler beim Laden:", error);
-    }
-  }, [isReady, currentTimeLimit]);
-
-  useEffect(() => { refreshData(); }, [refreshData]);
-
   const handleSaveAsset = async (provider, value, timestamp) => {
     try {
       await AssetRepository.saveAsset(provider, value, timestamp);
-      await refreshData();
+      await refresh(); // Hook-Refresh triggern
     } catch (error) {
       console.error("Speicherfehler:", error);
     }
@@ -108,9 +69,9 @@ function MainContent() {
     try {
       await AssetRepository.clearAllData();
       setDeleteModalVisible(false);
-      await refreshData();
+      await refresh();
     } catch (error) {
-      console.error("Fehler beim Löschen der Daten:", error);
+      console.error("Fehler beim Löschen:", error);
     }
   };
 
@@ -133,7 +94,7 @@ function MainContent() {
       <ScrollView style={styles.content}>
         <Chart 
           data={chartData} 
-          aggregation={currentAggregation}
+          aggregation={aggregation}
           onFilterChange={(limit) => setCurrentTimeLimit(limit)} 
         />
         <PortfolioList portfolios={portfolios} />

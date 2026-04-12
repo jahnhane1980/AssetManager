@@ -1,6 +1,6 @@
 // constants/AppConstants.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Fachliche Konstanten & UI-Einstellungen
+// Fokus: Rein statische Fach-Konstanten
 
 export const AppConstants = {
   PROVIDERS: [
@@ -20,6 +20,7 @@ export const AppConstants = {
     TIMEOUT_MS: 30000,
   },
   PROMPTS: {
+    // Dieser String-Generator bleibt hier, da er eine reine Konfiguration für die KI ist.
     ASSET_EXTRACTION: (provider) => `Du bist ein Finanz-Experte. Analysiere diesen Screenshot von "${provider}". 
       Extrahiere den aktuellen Gesamtsaldo. Falls kein Gesamtwert existiert, addiere alle Asset-Werte auf dem Bild. 
       Antworte NUR mit dem Zahlenwert im Format XX.XXX,XX oder XX,XX.`,

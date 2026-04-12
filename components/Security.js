@@ -1,12 +1,13 @@
 // Security.js
 // Regel 6: Vollständiger Dateiinhalt
 // Regel 7: Fokus auf Struktur und Lesbarkeit
+// Refactoring: Nutzung von zentraler Config
 
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
+import { Config } from '../constants/Config';
 
-const MASTER_KEY_ID = 'user_master_key_v1';
-const GEMINI_KEY_ID = 'gemini_api_key_v1';
+const { MASTER_KEY, GEMINI_KEY } = Config.STORAGE_KEYS;
 
 export const Security = {
   /**
@@ -14,12 +15,12 @@ export const Security = {
    */
   getOrCreateMasterKey: async () => {
     try {
-      let key = await SecureStore.getItemAsync(MASTER_KEY_ID);
+      let key = await SecureStore.getItemAsync(MASTER_KEY);
       
       if (!key) {
         console.log("Generiere neuen Master-Key...");
         key = Crypto.randomUUID(); 
-        await SecureStore.setItemAsync(MASTER_KEY_ID, key, {
+        await SecureStore.setItemAsync(MASTER_KEY, key, {
           keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
         });
       }
@@ -36,7 +37,7 @@ export const Security = {
    */
   setGeminiKey: async (apiKey) => {
     try {
-      await SecureStore.setItemAsync(GEMINI_KEY_ID, apiKey, {
+      await SecureStore.setItemAsync(GEMINI_KEY, apiKey, {
         keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
       });
       return true;
@@ -51,7 +52,7 @@ export const Security = {
    */
   getGeminiKey: async () => {
     try {
-      return await SecureStore.getItemAsync(GEMINI_KEY_ID);
+      return await SecureStore.getItemAsync(GEMINI_KEY);
     } catch (error) {
       console.error("Fehler beim Laden des Gemini Keys:", error);
       return null;

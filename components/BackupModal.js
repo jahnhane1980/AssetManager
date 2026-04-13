@@ -1,6 +1,6 @@
 // components/BackupModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung auf globales Notification-System
+// Refactoring: Umstellung auf nativen Android-OAuth-Flow (ohne Expo Proxy)
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -32,12 +32,24 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
 
   const dbPath = `${FileSystem.documentDirectory}SQLite/${Config.DATABASE.NAME}`;
 
-  const redirectUri = AuthSession.makeRedirectUri({
-    useProxy: true,
-  });
+  // Nativer Redirect-Pfad für Android mit explizitem Pfad
+const redirectUri = AuthSession.makeRedirectUri({
+  scheme: 'assetmanager-app',
+  path: 'oauthredirect',
+});
+//alt 
+  //const redirectUri = AuthSession.makeRedirectUri({
+  //  useProxy: false,
+  //});
+
+  // In BackupModal.js suchen und davor einfügen:
+console.log("AKTUELLER CLIENT-ID-CHECK:", Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID);
+console.log("PROXY-MODUS:", false); // Hier siehst du, ob dein Code-Stand stimmt
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: Config.GOOGLE_DRIVE.CLIENT_ID_WEB,
+    androidClientId: Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID,
+    iosClientId: Config.GOOGLE_DRIVE.CLIENT_ID_IOS,
+    webClientId: Config.GOOGLE_DRIVE.CLIENT_ID_WEB,
     scopes: Config.GOOGLE_DRIVE.SCOPES,
     redirectUri: redirectUri,
   });

@@ -1,7 +1,7 @@
 // constants/Config.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Technische Infrastruktur & API-Konfiguration
-// Update: Google OAuth Web-Client ID eingetragen
+// Update: Validierte Google OAuth Web-Client ID eingetragen
 
 export const Config = {
   DATABASE: {
@@ -32,7 +32,7 @@ export const Config = {
     // IDs aus der Cloud Console
     CLIENT_ID_IOS: 'DEINE_IOS_CLIENT_ID.apps.googleusercontent.com',
     CLIENT_ID_ANDROID: 'DEINE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-    // ID aus dem Screenshot übertragen
+    // Übertragene ID aus deinem Screenshot für die Nutzung im Expo-Proxy/Web
     CLIENT_ID_WEB: '452103334238-nafcpc7l8dfsv9vl1md9gc06509ld5la.apps.googleusercontent.com',
   }
 };

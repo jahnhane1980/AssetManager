@@ -1,6 +1,7 @@
 // services/GoogleDriveService.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Kapselung der Google Drive API Kommunikation (Upload & Download)
+// Update: Detailliertes Error-Logging über response.text() integriert
 
 import { Config } from '../constants/Config';
 
@@ -24,6 +25,11 @@ class GoogleDriveService {
       headers: { Authorization: `Bearer ${this.accessToken}` }
     });
     
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Fehler beim Suchen des Ordners (${response.status}): ${errorText}`);
+    }
+    
     const data = await response.json();
     if (data.files && data.files.length > 0) {
       return data.files[0].id;
@@ -41,6 +47,11 @@ class GoogleDriveService {
       })
     });
     
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text();
+      throw new Error(`Fehler beim Erstellen des Ordners (${createResponse.status}): ${errorText}`);
+    }
+    
     const folder = await createResponse.json();
     return folder.id;
   }
@@ -53,6 +64,11 @@ class GoogleDriveService {
     const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id, name, createdTime)&orderBy=createdTime desc`, {
       headers: { Authorization: `Bearer ${this.accessToken}` }
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Fehler beim Laden der Backups (${response.status}): ${errorText}`);
+    }
     
     const data = await response.json();
     return data.files || [];
@@ -86,7 +102,11 @@ class GoogleDriveService {
       body: body
     });
 
-    if (!response.ok) throw new Error("Upload fehlgeschlagen: " + response.status);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload fehlgeschlagen (${response.status}): ${errorText}`);
+    }
+    
     return await response.json();
   }
 
@@ -98,7 +118,11 @@ class GoogleDriveService {
       headers: { Authorization: `Bearer ${this.accessToken}` }
     });
     
-    if (!response.ok) throw new Error("Download fehlgeschlagen.");
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Download fehlgeschlagen (${response.status}): ${errorText}`);
+    }
+    
     // Wir benötigen den Inhalt als Base64 für das FileSystem
     const blob = await response.blob();
     return new Promise((resolve, reject) => {

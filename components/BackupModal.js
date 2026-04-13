@@ -1,6 +1,8 @@
 // components/BackupModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fix: Nutzung von expo-file-system/legacy zur Behebung von Evaluierungsfehlern
+// Update: Alert.alert für detailliertes Fehler-Debugging
+// FIX 400 Error: Explizite Nutzung des Proxys und der Web-Client-ID
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -15,7 +17,6 @@ import {
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-// Umstellung auf legacy Import für bessere Kompatibilität in Expo-Umgebungen
 import * as FileSystem from 'expo-file-system/legacy'; 
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
@@ -32,15 +33,18 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
   const [backups, setBackups] = useState([]);
   const [statusMessage, setStatusMessage] = useState(null);
 
-  // Pfad zur lokalen SQLite Datenbank
   const dbPath = `${FileSystem.documentDirectory}SQLite/${Config.DATABASE.NAME}`;
 
-  // Google Auth Request Hook
+  // ERZwingt die korrekte Redirect-URI (https://auth.expo.io/...)
+  const redirectUri = AuthSession.makeRedirectUri({
+    useProxy: true,
+  });
+
+  // Google Auth Request Hook: Zwingend Web-Client nutzen!
   const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: Config.GOOGLE_DRIVE.CLIENT_ID_IOS,
-    androidClientId: Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID,
-    webClientId: Config.GOOGLE_DRIVE.CLIENT_ID_WEB,
+    clientId: Config.GOOGLE_DRIVE.CLIENT_ID_WEB,
     scopes: Config.GOOGLE_DRIVE.SCOPES,
+    redirectUri: redirectUri,
   });
 
   useEffect(() => {
@@ -62,6 +66,7 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
     } catch (error) {
       console.error(error);
       setStatusMessage({ text: "Fehler beim Laden der Backups.", type: 'error' });
+      Alert.alert("Detail-Fehler (Laden)", error.message);
     } finally {
       setIsProcessing(false);
     }
@@ -84,6 +89,7 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
       await loadBackups();
     } catch (error) {
       setStatusMessage({ text: "Fehler: " + error.message, type: 'error' });
+      Alert.alert("Detail-Fehler (Upload)", error.message);
     } finally {
       setIsProcessing(false);
     }
@@ -110,6 +116,7 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
       if (onRestoreSuccess) onRestoreSuccess();
     } catch (error) {
       setStatusMessage({ text: "Restore fehlgeschlagen: " + error.message, type: 'error' });
+      Alert.alert("Detail-Fehler (Restore)", error.message);
     } finally {
       setIsProcessing(false);
     }

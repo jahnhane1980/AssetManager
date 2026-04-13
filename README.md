@@ -53,7 +53,6 @@ Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, s
 
 ### 🔐 Neue Funktionen
 * **Backup & Restore**: Export und Import der lokalen Datenbank als verschlüsselte Datei zur externen Datensicherung. [in progress]
-* **Währungs-Flexibilität**: Unterstützung für verschiedene Basiswährungen und spezielle Ansichten für Krypto-Assets.
 
 ## Umgesetzte Erweiterungen 
 ### ⚡ Technische Optimierungen
@@ -70,3 +69,4 @@ Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, s
 * **Biometrische Sperre**: Optionale Zugriffssicherung der App mittels FaceID oder Fingerabdruck. 
 * **Detail-Analysen**: Einführung von Einzel-Historien pro Anbieter für tiefere Einblicke.
 * **Dark Mode**: Vollständige Unterstützung für das systemweite dunkle Erscheinungsbild.
+* **Währungs-Flexibilität**: Unterstützung für verschiedene Basiswährungen und spezielle Ansichten für Krypto-Assets.

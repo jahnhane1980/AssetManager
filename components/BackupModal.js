@@ -33,18 +33,18 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
   const dbPath = `${FileSystem.documentDirectory}SQLite/${Config.DATABASE.NAME}`;
 
   // Nativer Redirect-Pfad für Android mit explizitem Pfad
-const redirectUri = AuthSession.makeRedirectUri({
-  scheme: 'assetmanager-app',
-  path: 'oauthredirect',
-});
-//alt 
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: 'com.jahnhane.assetmanager',
+    path: 'oauthredirect',
+  });
+  //alt 
   //const redirectUri = AuthSession.makeRedirectUri({
   //  useProxy: false,
   //});
 
   // In BackupModal.js suchen und davor einfügen:
-console.log("AKTUELLER CLIENT-ID-CHECK:", Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID);
-console.log("PROXY-MODUS:", false); // Hier siehst du, ob dein Code-Stand stimmt
+  console.log("AKTUELLER CLIENT-ID-CHECK:", Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID);
+  console.log("PROXY-MODUS:", false); // Hier siehst du, ob dein Code-Stand stimmt
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID,

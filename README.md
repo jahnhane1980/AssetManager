@@ -57,12 +57,14 @@ Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, s
 * **Zentrales UI-Feedback**: Implementierung eines globalen Notification-Systems für konsistente Erfolgs- und Fehlermeldungen.
 
 ### 🔐 Neue Funktionen
-* **Backup & Restore**: Export und Import der lokalen Datenbank als verschlüsselte Datei zur externen Datensicherung.
-* **Biometrische Sperre**: Optionale Zugriffssicherung der App mittels FaceID oder Fingerabdruck.
+* **Backup & Restore**: Export und Import der lokalen Datenbank als verschlüsselte Datei zur externen Datensicherung. [in progress]
 * **Währungs-Flexibilität**: Unterstützung für verschiedene Basiswährungen und spezielle Ansichten für Krypto-Assets.
-* **Detail-Analysen**: Einführung von Einzel-Historien pro Anbieter für tiefere Einblicke.
 
 ### 🎨 UX & Visualisierung
 * **Interaktive Charts**: "On-Touch"-Tooltips zur Anzeige exakter Beträge im Graphen.
-* **Dark Mode**: Vollständige Unterstützung für das systemweite dunkle Erscheinungsbild.
 * **Validierte Eingabe**: Optimierung der manuellen Datumseingabe durch Input-Masking oder native Picker-Integration.
+
+### Möglich für V2
+* **Biometrische Sperre**: Optionale Zugriffssicherung der App mittels FaceID oder Fingerabdruck. 
+* **Detail-Analysen**: Einführung von Einzel-Historien pro Anbieter für tiefere Einblicke.
+* **Dark Mode**: Vollständige Unterstützung für das systemweite dunkle Erscheinungsbild.

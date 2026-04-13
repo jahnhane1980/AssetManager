@@ -51,10 +51,6 @@ Deine Finanzdaten sind sensibel. Deshalb speichert der AssetManager alle Buchung
 
 Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, sind folgende Erweiterungen für zukünftige Versionen geplant:
 
-### ⚡ Technische Optimierungen
-* **Performance-Listen**: Umstellung der Portfolio- und Historien-Anzeige auf `FlatList` für effizienteres Rendering großer Datenmengen.
-* **DB-Indizes**: Optimierung der SQLite-Abfragegeschwindigkeit durch Indizes auf den Spalten `timestamp` und `provider`.
-
 ### 🔐 Neue Funktionen
 * **Backup & Restore**: Export und Import der lokalen Datenbank als verschlüsselte Datei zur externen Datensicherung. [in progress]
 * **Währungs-Flexibilität**: Unterstützung für verschiedene Basiswährungen und spezielle Ansichten für Krypto-Assets.
@@ -64,7 +60,12 @@ Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, s
 * **Validierte Eingabe**: Optimierung der manuellen Datumseingabe durch Input-Masking oder native Picker-Integration.
 * **Zentrales UI-Feedback**: Implementierung eines globalen Notification-Systems für konsistente Erfolgs- und Fehlermeldungen.
 
-### Möglich für V2
+## Umgesetzte Erweiterungen 
+### ⚡ Technische Optimierungen
+* **Performance-Listen**: Umstellung der Portfolio- und Historien-Anzeige auf `FlatList` für effizienteres Rendering großer Datenmengen.
+* **DB-Indizes**: Optimierung der SQLite-Abfragegeschwindigkeit durch Indizes auf den Spalten `timestamp` und `provider`.
+
+## Möglich für V2
 * **Biometrische Sperre**: Optionale Zugriffssicherung der App mittels FaceID oder Fingerabdruck. 
 * **Detail-Analysen**: Einführung von Einzel-Historien pro Anbieter für tiefere Einblicke.
 * **Dark Mode**: Vollständige Unterstützung für das systemweite dunkle Erscheinungsbild.

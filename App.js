@@ -1,15 +1,14 @@
 // App.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Einbindung des globalen LogServices und Fehler-Logging
+// Refactoring: Entfernung der ScrollView zur Vermeidung von Nested-List-Warnings
 
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Theme } from './components/Theme';
 import { Security } from './components/Security';
 import AssetRepository from './repositories/AssetRepository';
 import TotalValueHeader from './components/TotalValueHeader';
-import Chart from './components/Chart';
 import PortfolioList from './components/PortfolioList';
 import AddAssetButton from './components/AddAssetButton';
 import AddAssetModal from './components/AddAssetModal';
@@ -18,7 +17,7 @@ import MenuModal from './components/MenuModal';
 import HistoryModal from './components/HistoryModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import BackupModal from './components/BackupModal';
-import LogService from './services/LogService'; // Neu importiert
+import LogService from './services/LogService';
 
 import { usePortfolioData } from './hooks/usePortfolioData';
 
@@ -46,10 +45,7 @@ function MainContent() {
   useEffect(() => {
     async function initApp() {
       try {
-        // 1. Globalen Logger registrieren
         global.log = (msg, type) => LogService.log(msg, type);
-        
-        // 2. LogService initialisieren (24h Check & Rotation)
         await LogService.init();
         global.log("Initialisierung der System-Komponenten gestartet...");
 
@@ -103,14 +99,14 @@ function MainContent() {
         onMenuPress={() => setMenuVisible(true)} 
       />
 
-      <ScrollView style={styles.content}>
-        <Chart 
-          data={chartData} 
+      <View style={styles.content}>
+        <PortfolioList 
+          portfolios={portfolios}
+          chartData={chartData}
           aggregation={aggregation}
-          onFilterChange={(limit) => setCurrentTimeLimit(limit)} 
+          onFilterChange={(limit) => setCurrentTimeLimit(limit)}
         />
-        <PortfolioList portfolios={portfolios} />
-      </ScrollView>
+      </View>
 
       <AddAssetButton onPress={() => setAddModalVisible(true)} />
 
@@ -152,5 +148,5 @@ export default function App() { return (<SafeAreaProvider><MainContent /></SafeA
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content: { flex: 1, padding: Theme.spacing.m },
+  content: { flex: 1 }, // Padding wird jetzt von der Liste gehandhabt
 });

@@ -1,17 +1,16 @@
 // components/Chart.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Hinzufügen eines Umschalters zwischen Linien- und Balkendiagramm
+// Refactoring: Implementierung interaktiver Tooltips via PanResponder
 
-import React, { useState } from 'react';
-import { View, Dimensions, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
+import React, { useState, useMemo } from 'react';
+import { View, Dimensions, StyleSheet, TouchableOpacity, Text, PanResponder } from 'react-native';
+import Svg, { Path, Defs, LinearGradient, Stop, G, Circle, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { Theme } from './Theme';
 import { AppConstants } from '../constants/AppConstants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const { HEIGHT, PADDING, FILTERS } = AppConstants.CHART;
 
-// Chart Typen Konstanten
 const CHART_TYPES = {
   LINE: 'LINE',
   BAR: 'BAR'
@@ -19,12 +18,50 @@ const CHART_TYPES = {
 
 export default function Chart({ data, aggregation, onFilterChange }) {
   const [activeFilter, setActiveFilter] = useState('ALL');
-  // State für den aktuellen Chart-Typ (Default: Linie)
   const [chartType, setChartType] = useState(CHART_TYPES.LINE);
+  
+  // State für den aktuell berührten Datenpunkt
+  const [activeIndex, setActiveIndex] = useState(null);
+
+  const chartWidth = SCREEN_WIDTH - 30;
+
+  // Hilfsfunktion zum Berechnen der Min/Max Werte
+  const minMax = useMemo(() => {
+    if (!data || data.length === 0) return null;
+    const values = data.map(d => d.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = (max - min) || 1;
+    const paddingBuffer = range * 0.1;
+    
+    return {
+      adjMin: min - paddingBuffer,
+      adjRange: (max + paddingBuffer) - (min - paddingBuffer)
+    };
+  }, [data]);
+
+  // PanResponder zur Erfassung von Touch-Gesten
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderMove: (evt) => {
+      if (!data || data.length < 2) return;
+      
+      const touchX = evt.nativeEvent.locationX;
+      const availableWidth = chartWidth - PADDING * 2;
+      
+      // Berechnung des nächstgelegenen Datenpunkt-Index
+      let index = Math.round(((touchX - PADDING) / availableWidth) * (data.length - 1));
+      index = Math.max(0, Math.min(index, data.length - 1));
+      
+      setActiveIndex(index);
+    },
+    onPanResponderRelease: () => setActiveIndex(null),
+    onPanResponderTerminate: () => setActiveIndex(null),
+  }), [data, chartWidth]);
 
   const handleFilterPress = (filter) => {
     setActiveFilter(filter);
-    
     let timeLimit = 0;
     const now = new Date();
     
@@ -39,9 +76,7 @@ export default function Chart({ data, aggregation, onFilterChange }) {
       timeLimit = now.getTime();
     }
     
-    if (onFilterChange) {
-      onFilterChange(timeLimit);
-    }
+    if (onFilterChange) onFilterChange(timeLimit);
   };
 
   const getAggregationLabel = () => {
@@ -54,28 +89,77 @@ export default function Chart({ data, aggregation, onFilterChange }) {
     }
   };
 
-  // Hilfsfunktion zum Berechnen der Min/Max Werte
-  const getMinMax = () => {
-    const values = data.map(d => d.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = (max - min) || 1;
-    const paddingBuffer = range * 0.1;
+  const renderTooltip = () => {
+    if (activeIndex === null || !data || !data[activeIndex] || !minMax) return null;
+
+    const d = data[activeIndex];
+    const { adjMin, adjRange } = minMax;
     
-    return {
-      min, max, range,
-      adjMin: min - paddingBuffer,
-      adjMax: max + paddingBuffer,
-      adjRange: (max + paddingBuffer) - (min - paddingBuffer)
-    };
+    // X & Y Position des Punktes berechnen
+    const x = PADDING + (activeIndex * (chartWidth - PADDING * 2)) / (data.length - 1);
+    const y = HEIGHT - PADDING - ((d.value - adjMin) / adjRange) * (HEIGHT - PADDING * 2);
+
+    const formattedValue = d.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    const formattedDate = new Date(d.timestamp).toLocaleDateString('de-DE');
+
+    // Tooltip-Box Positionierung (verhindert Überlappen am Rand)
+    const boxWidth = 100;
+    const boxX = x > chartWidth / 2 ? x - boxWidth - 10 : x + 10;
+
+    return (
+      <G>
+        {/* Vertikale Hilfslinie */}
+        <Line 
+          x1={x} y1={PADDING} 
+          x2={x} y2={HEIGHT - PADDING} 
+          stroke={Theme.colors.border} 
+          strokeDasharray="4,4" 
+        />
+        
+        {/* Highlight Punkt */}
+        <Circle 
+          cx={x} cy={y} 
+          r="6" 
+          fill={Theme.colors.primary} 
+          stroke={Theme.colors.white} 
+          strokeWidth="2" 
+        />
+
+        {/* Tooltip Box */}
+        <Rect
+          x={boxX}
+          y={y - 45}
+          width={boxWidth}
+          height={40}
+          rx="5"
+          fill={Theme.colors.surface}
+          stroke={Theme.colors.border}
+          elevation={3}
+        />
+        <SvgText
+          x={boxX + 5}
+          y={y - 30}
+          fontSize="10"
+          fontWeight="bold"
+          fill={Theme.colors.text}
+        >
+          {formattedValue}
+        </SvgText>
+        <SvgText
+          x={boxX + 5}
+          y={y - 15}
+          fontSize="9"
+          fill={Theme.colors.textSecondary}
+        >
+          {formattedDate}
+        </SvgText>
+      </G>
+    );
   };
 
-  // Render-Logik für das Liniendiagramm (bestehend)
-  const renderLineChart = (chartWidth) => {
-    const { adjMin, adjRange } = getMinMax();
-
+  const renderLineChart = () => {
+    const { adjMin, adjRange } = minMax;
     const points = data.map((d, i) => {
-      // X-Koordinate: Startet bei PADDING, endet bei chartWidth - PADDING
       const x = PADDING + (i * (chartWidth - PADDING * 2)) / (data.length - 1);
       const y = HEIGHT - PADDING - ((d.value - adjMin) / adjRange) * (HEIGHT - PADDING * 2);
       return `${x},${y}`;
@@ -86,143 +170,79 @@ export default function Chart({ data, aggregation, onFilterChange }) {
 
     return (
       <>
-        <Path
-          d={dLine}
-          fill="none"
-          stroke={Theme.colors.primary}
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Path
-          d={dArea}
-          fill="url(#gradLine)"
-        />
+        <Path d={dLine} fill="none" stroke={Theme.colors.primary} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <Path d={dArea} fill="url(#gradLine)" />
       </>
     );
   };
 
-  // Render-Logik für das Balkendiagramm (neu)
-  const renderBarChart = (chartWidth) => {
-    const { adjMin, adjRange } = getMinMax();
-    
-    // Berechne die verfügbare Breite für Balken (Gesamtbreite minus Padding)
+  const renderBarChart = () => {
+    const { adjMin, adjRange } = minMax;
     const availableWidth = chartWidth - PADDING * 2;
-    // Berechne die Breite pro Balken
     const fullBarWidth = availableWidth / data.length;
-    // Definiere einen Spalt zwischen Balken (z.B. 20% der Gesamtbreite)
     const gap = fullBarWidth * 0.2;
-    // Tatsächliche Breite des Balkens
     const barWidth = fullBarWidth - gap;
 
-    const bars = data.map((d, i) => {
-      // X-Koordinate des Balken-Anfangs
+    return data.map((d, i) => {
       const x = PADDING + (i * fullBarWidth) + (gap / 2);
-      
-      // Y-Koordinate (Höhe) berechnen. Wenn der Wert unter min liegt, Balken sehr klein machen
       const valueRatio = (d.value - adjMin) / adjRange;
       const barHeight = Math.max(2, valueRatio * (HEIGHT - PADDING * 2));
       const y = HEIGHT - PADDING - barHeight;
-
-      // Pfad für einen Balken mit abgerundeten Ecken oben
-      const radius = Math.min(barWidth / 2, 5); // Radius für Ecken
+      const radius = Math.min(barWidth / 2, 5);
       
       return (
         <Path
           key={`bar-${i}`}
-          d={`
-            M ${x},${HEIGHT - PADDING}
-            L ${x},${y + radius}
-            Q ${x},${y} ${x + radius},${y}
-            L ${x + barWidth - radius},${y}
-            Q ${x + barWidth},${y} ${x + barWidth},${y + radius}
-            L ${x + barWidth},${HEIGHT - PADDING}
-            Z
-          `}
-          fill="url(#gradBar)"
+          d={`M ${x},${HEIGHT - PADDING} L ${x},${y + radius} Q ${x},${y} ${x + radius},${y} L ${x + barWidth - radius},${y} Q ${x + barWidth},${y} ${x + barWidth},${y + radius} L ${x + barWidth},${HEIGHT - PADDING} Z`}
+          fill={activeIndex === i ? Theme.colors.primary : "url(#gradBar)"}
         />
       );
     });
-
-    return <>{bars}</>;
   };
 
-  const renderChart = () => {
-    if (!data || data.length < 2) {
-      return (
-        <View style={[styles.chartArea, { justifyContent: 'center' }]}>
-          <Text style={styles.noDataText}>
-            {data && data.length === 1 
-              ? "Sammle mehr Daten für den Verlauf..." 
-              : "Keine Daten für diesen Zeitraum."}
-          </Text>
+  return (
+    <View style={styles.container}>
+      <View style={styles.headerRow}>
+        <Text style={styles.infoText}>Auflösung: {getAggregationLabel()}</Text>
+        <View style={styles.typeSwitcher}>
+          <TouchableOpacity onPress={() => setChartType(CHART_TYPES.LINE)} style={[styles.typeBtn, chartType === CHART_TYPES.LINE && styles.typeBtnActive]}>
+            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.LINE && styles.typeBtnTextActive]}>Linie</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setChartType(CHART_TYPES.BAR)} style={[styles.typeBtn, chartType === CHART_TYPES.BAR && styles.typeBtnActive]}>
+            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.BAR && styles.typeBtnTextActive]}>Balken</Text>
+          </TouchableOpacity>
         </View>
-      );
-    }
+      </View>
 
-    const chartWidth = SCREEN_WIDTH - 30; // Konsistente Breite
-
-    return (
-      <View style={styles.chartArea}>
+      <View style={styles.chartArea} {...panResponder.panHandlers}>
         <Svg height={HEIGHT} width={chartWidth}>
           <Defs>
-            {/* Gradient für Linie (Fläche) */}
             <LinearGradient id="gradLine" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={Theme.colors.primary} stopOpacity="0.2" />
               <Stop offset="1" stopColor={Theme.colors.primary} stopOpacity="0" />
             </LinearGradient>
-            
-            {/* Gradient für Balken */}
             <LinearGradient id="gradBar" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={Theme.colors.primary} stopOpacity="0.8" />
               <Stop offset="1" stopColor={Theme.colors.primary} stopOpacity="0.4" />
             </LinearGradient>
           </Defs>
           
-          {/* Dynamisches Rendering basierend auf chartType */}
-          {chartType === CHART_TYPES.LINE 
-            ? renderLineChart(chartWidth) 
-            : renderBarChart(chartWidth)
-          }
+          {data && data.length >= 2 ? (
+            <>
+              {chartType === CHART_TYPES.LINE ? renderLineChart() : renderBarChart()}
+              {renderTooltip()}
+            </>
+          ) : (
+            <SvgText x={chartWidth / 2} y={HEIGHT / 2} textAnchor="middle" fill={Theme.colors.textSecondary} fontSize="12">
+              {data && data.length === 1 ? "Mehr Daten erforderlich..." : "Keine Daten vorhanden."}
+            </SvgText>
+          )}
         </Svg>
       </View>
-    );
-  };
-
-  return (
-    <View style={styles.container}>
-      {/* Kopfzeile mit Aggregation (links) und Umschalter (rechts) */}
-      <View style={styles.headerRow}>
-        <Text style={styles.infoText}>Auflösung: {getAggregationLabel()}</Text>
-        
-        <View style={styles.typeSwitcher}>
-          {/* Button für Linie */}
-          <TouchableOpacity 
-            onPress={() => setChartType(CHART_TYPES.LINE)} 
-            style={[styles.typeBtn, chartType === CHART_TYPES.LINE && styles.typeBtnActive]}
-          >
-            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.LINE && styles.typeBtnTextActive]}>Linie</Text>
-          </TouchableOpacity>
-          
-          {/* Button für Balken */}
-          <TouchableOpacity 
-            onPress={() => setChartType(CHART_TYPES.BAR)} 
-            style={[styles.typeBtn, chartType === CHART_TYPES.BAR && styles.typeBtnActive]}
-          >
-            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.BAR && styles.typeBtnTextActive]}>Balken</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {renderChart()}
       
       <View style={styles.filterRow}>
         {FILTERS.map(f => (
-          <TouchableOpacity 
-            key={f} 
-            onPress={() => handleFilterPress(f)} 
-            style={[styles.filterBtn, activeFilter === f && styles.filterBtnActive]}
-          >
+          <TouchableOpacity key={f} onPress={() => handleFilterPress(f)} style={[styles.filterBtn, activeFilter === f && styles.filterBtnActive]}>
             <Text style={[styles.filterBtnText, activeFilter === f && styles.filterBtnTextActive]}>{f}</Text>
           </TouchableOpacity>
         ))}
@@ -232,82 +252,18 @@ export default function Chart({ data, aggregation, onFilterChange }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: Theme.colors.surface,
-    borderRadius: Theme.borderRadius.l,
-    paddingVertical: Theme.spacing.m,
-    marginBottom: Theme.spacing.l,
-    elevation: 2,
-    alignItems: 'center'
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: Theme.spacing.l,
-    marginBottom: 5
-  },
-  infoText: {
-    fontSize: 10,
-    color: Theme.colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1
-  },
-  typeSwitcher: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-    borderRadius: 15,
-    overflow: 'hidden'
-  },
-  typeBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    backgroundColor: Theme.colors.surface
-  },
-  typeBtnActive: {
-    backgroundColor: Theme.colors.primary
-  },
-  typeBtnText: {
-    fontSize: 10,
-    fontWeight: Theme.fontWeight.bold,
-    color: Theme.colors.textSecondary
-  },
-  typeBtnTextActive: {
-    color: Theme.colors.white
-  },
-  chartArea: {
-    height: HEIGHT,
-    width: '100%',
-    alignItems: 'center'
-  },
-  noDataText: { 
-    color: Theme.colors.textSecondary,
-    fontSize: Theme.fontSize.caption,
-    textAlign: 'center',
-    paddingHorizontal: 20
-  },
-  filterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginTop: 10
-  },
-  filterBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20
-  },
-  filterBtnActive: {
-    backgroundColor: Theme.colors.primary
-  },
-  filterBtnText: {
-    color: Theme.colors.textSecondary,
-    fontWeight: Theme.fontWeight.semibold,
-    fontSize: Theme.fontSize.caption
-  },
-  filterBtnTextActive: {
-    color: Theme.colors.white
-  }
+  container: { backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, paddingVertical: Theme.spacing.m, marginBottom: Theme.spacing.l, elevation: 2, alignItems: 'center' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingHorizontal: Theme.spacing.l, marginBottom: 5 },
+  infoText: { fontSize: 10, color: Theme.colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1 },
+  typeSwitcher: { flexDirection: 'row', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: 15, overflow: 'hidden' },
+  typeBtn: { paddingVertical: 4, paddingHorizontal: 10, backgroundColor: Theme.colors.surface },
+  typeBtnActive: { backgroundColor: Theme.colors.primary },
+  typeBtnText: { fontSize: 10, fontWeight: Theme.fontWeight.bold, color: Theme.colors.textSecondary },
+  typeBtnTextActive: { color: Theme.colors.white },
+  chartArea: { height: HEIGHT, width: '100%', alignItems: 'center' },
+  filterRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 10 },
+  filterBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20 },
+  filterBtnActive: { backgroundColor: Theme.colors.primary },
+  filterBtnText: { color: Theme.colors.textSecondary, fontWeight: Theme.fontWeight.semibold, fontSize: Theme.fontSize.caption },
+  filterBtnTextActive: { color: Theme.colors.white }
 });

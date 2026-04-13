@@ -1,6 +1,6 @@
 // App.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Entfernung der ScrollView zur Vermeidung von Nested-List-Warnings
+// Refactoring: Einbindung des globalen Notification-Systems
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
@@ -17,6 +17,7 @@ import MenuModal from './components/MenuModal';
 import HistoryModal from './components/HistoryModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import BackupModal from './components/BackupModal';
+import Notification from './components/Notification'; // Neu
 import LogService from './services/LogService';
 
 import { usePortfolioData } from './hooks/usePortfolioData';
@@ -25,6 +26,7 @@ function MainContent() {
   const insets = useSafeAreaInsets();
   const [isReady, setIsReady] = useState(false);
   const [currentTimeLimit, setCurrentTimeLimit] = useState(0);
+  const [activeNotification, setActiveNotification] = useState(null); // State für Toasts
   
   const { 
     totalValue, 
@@ -43,6 +45,9 @@ function MainContent() {
   const [isBackupVisible, setBackupVisible] = useState(false);
 
   useEffect(() => {
+    // Registrierung der globalen Notify-Funktion
+    global.notify = (message, type = 'info') => setActiveNotification({ message, type });
+
     async function initApp() {
       try {
         global.log = (msg, type) => LogService.log(msg, type);
@@ -66,9 +71,11 @@ function MainContent() {
     try {
       await AssetRepository.saveAsset(provider, value, timestamp);
       global.log(`Asset gespeichert: ${provider} - ${value}€`);
+      global.notify(`${provider}: Wert erfolgreich gespeichert`, 'success');
       await refresh(); 
     } catch (error) {
       global.log(`Speicherfehler (${provider}): ${error.message}`, "ERROR");
+      global.notify("Fehler beim Speichern", "error");
     }
   };
 
@@ -76,10 +83,12 @@ function MainContent() {
     try {
       await AssetRepository.clearAllData();
       global.log("Vollständiger Daten-Reset durch den Nutzer.", "WARN");
+      global.notify("Alle Daten wurden gelöscht", "success");
       setDeleteModalVisible(false);
       await refresh();
     } catch (error) {
       global.log(`Fehler beim Löschen der Daten: ${error.message}`, "ERROR");
+      global.notify("Fehler beim Löschen", "error");
     }
   };
 
@@ -93,6 +102,11 @@ function MainContent() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <Notification 
+        notification={activeNotification} 
+        onHide={() => setActiveNotification(null)} 
+      />
+
       <TotalValueHeader 
         totalValue={totalValue} 
         performance={performance} 
@@ -148,5 +162,5 @@ export default function App() { return (<SafeAreaProvider><MainContent /></SafeA
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content: { flex: 1 }, // Padding wird jetzt von der Liste gehandhabt
+  content: { flex: 1 },
 });

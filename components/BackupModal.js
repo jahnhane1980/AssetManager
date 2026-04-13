@@ -1,8 +1,6 @@
 // components/BackupModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fix: Nutzung von expo-file-system/legacy zur Behebung von Evaluierungsfehlern
-// Update: Alert.alert für detailliertes Fehler-Debugging
-// FIX 400 Error: Explizite Nutzung des Proxys und der Web-Client-ID
+// Refactoring: Umstellung auf globales Notification-System
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -31,16 +29,13 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [backups, setBackups] = useState([]);
-  const [statusMessage, setStatusMessage] = useState(null);
 
   const dbPath = `${FileSystem.documentDirectory}SQLite/${Config.DATABASE.NAME}`;
 
-  // ERZwingt die korrekte Redirect-URI (https://auth.expo.io/...)
   const redirectUri = AuthSession.makeRedirectUri({
     useProxy: true,
   });
 
-  // Google Auth Request Hook: Zwingend Web-Client nutzen!
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: Config.GOOGLE_DRIVE.CLIENT_ID_WEB,
     scopes: Config.GOOGLE_DRIVE.SCOPES,
@@ -52,7 +47,7 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
       const { authentication } = response;
       GoogleDriveService.setAccessToken(authentication.accessToken);
       setIsAuthenticated(true);
-      setStatusMessage({ text: "Erfolgreich mit Google verbunden!", type: 'success' });
+      global.notify("Erfolgreich mit Google verbunden", 'success');
       loadBackups();
     }
   }, [response]);
@@ -65,8 +60,7 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
       setBackups(list);
     } catch (error) {
       console.error(error);
-      setStatusMessage({ text: "Fehler beim Laden der Backups.", type: 'error' });
-      Alert.alert("Detail-Fehler (Laden)", error.message);
+      global.notify("Fehler beim Laden der Backups", 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -74,7 +68,6 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
 
   const handleCreateBackup = async () => {
     setIsProcessing(true);
-    setStatusMessage(null);
     try {
       const info = await FileSystem.getInfoAsync(dbPath);
       if (!info.exists) throw new Error("Datenbank nicht gefunden.");
@@ -85,11 +78,11 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
 
       await GoogleDriveService.uploadBackup(folderId, fileName, base64);
       
-      setStatusMessage({ text: "Backup erfolgreich erstellt!", type: 'success' });
+      global.notify("Backup erfolgreich erstellt", 'success');
       await loadBackups();
     } catch (error) {
-      setStatusMessage({ text: "Fehler: " + error.message, type: 'error' });
-      Alert.alert("Detail-Fehler (Upload)", error.message);
+      global.notify("Upload fehlgeschlagen", 'error');
+      Alert.alert("Detail-Fehler", error.message);
     } finally {
       setIsProcessing(false);
     }
@@ -112,11 +105,11 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
       const base64 = await GoogleDriveService.downloadFile(fileId);
       await FileSystem.writeAsStringAsync(dbPath, base64, { encoding: FileSystem.EncodingType.Base64 });
 
-      setStatusMessage({ text: "Erfolgreich wiederhergestellt!", type: 'success' });
+      global.notify("Wiederherstellung erfolgreich", 'success');
       if (onRestoreSuccess) onRestoreSuccess();
+      onClose();
     } catch (error) {
-      setStatusMessage({ text: "Restore fehlgeschlagen: " + error.message, type: 'error' });
-      Alert.alert("Detail-Fehler (Restore)", error.message);
+      global.notify("Restore fehlgeschlagen", 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -172,12 +165,6 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
               ))}
             </View>
           )}
-
-          {statusMessage && (
-            <View style={[styles.statusBanner, statusMessage.type === 'error' ? styles.statusError : styles.statusSuccess]}>
-              <Text style={styles.statusText}>{statusMessage.text}</Text>
-            </View>
-          )}
         </ScrollView>
       </View>
     </Modal>
@@ -202,9 +189,5 @@ const styles = StyleSheet.create({
   backupCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.colors.surface, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, marginBottom: Theme.spacing.s, elevation: 1 },
   backupName: { fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.medium, color: Theme.colors.text },
   backupDate: { fontSize: Theme.fontSize.hint, color: Theme.colors.textSecondary },
-  restoreBtn: { padding: 2 },
-  statusBanner: { marginTop: 30, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.s, alignItems: 'center' },
-  statusSuccess: { backgroundColor: '#e8f5e9' },
-  statusError: { backgroundColor: '#ffebee' },
-  statusText: { fontWeight: Theme.fontWeight.medium, fontSize: Theme.fontSize.caption },
+  restoreBtn: { padding: 2 }
 });

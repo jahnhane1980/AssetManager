@@ -1,6 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Manuelle Datumseingabe im Picker-Modul hinzugefügt.
+// Refactoring: Umstellung auf globales Notification-System
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -16,6 +16,7 @@ import {
   ActivityIndicator 
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import { Security } from './Security';
@@ -23,21 +24,14 @@ import { Config } from '../constants/Config';
 import { AppConstants } from '../constants/AppConstants';
 
 export default function AddAssetModal({ visible, onClose, onSave }) {
-  // --- State ---
   const [rows, setRows] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(null);
   const [hasApiKey, setHasApiKey] = useState(false);
 
-  // Hilfs-States für "Select-Boxen"
   const [activeRowId, setActiveRowId] = useState(null);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  
-  // State für manuelle Datumseingabe
-  const [manualDateText, setManualDateText] = useState('');
-
-  // --- Stabilisierte Funktionen ---
+  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
+  const [showNativePicker, setShowNativePicker] = useState(false);
 
   const checkKeyStatus = useCallback(async () => {
     const key = await Security.getGeminiKey();
@@ -71,38 +65,17 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
 
   const resetAndClose = useCallback(() => {
     setRows([]);
-    setErrorMessage(null);
-    setManualDateText('');
     onClose();
   }, [onClose]);
 
-  // Hilfsfunktion: Datum-String (DD.MM.YY oder DD.MM.YYYY) parsen
-  const parseManualDate = (text) => {
-    const parts = text.split('.');
-    if (parts.length !== 3) return null;
-
-    let [day, month, year] = parts.map(p => parseInt(p, 10));
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-
-    // Einfaches Year-Handling: 26 -> 2026
-    if (year < 100) year += 2000;
-    
-    const date = new Date(year, month - 1, day);
-    return isNaN(date.getTime()) ? null : date.getTime();
-  };
-
-  const handleApplyManualDate = () => {
-    const ts = parseManualDate(manualDateText);
-    if (ts) {
-      updateRow(activeRowId, { timestamp: ts });
-      setShowDatePicker(false);
-      setManualDateText('');
-    } else {
-      setErrorMessage("Ungültiges Format. Bitte TT.MM.JJ nutzen.");
+  const handleNativeDateChange = (event, selectedDate) => {
+    setShowNativePicker(false);
+    if (selectedDate && activeRowId) {
+      updateRow(activeRowId, { timestamp: selectedDate.getTime() });
+      setShowDatePickerModal(false);
     }
   };
 
-  // --- Initialisierung ---
   useEffect(() => {
     if (visible) {
       checkKeyStatus();
@@ -112,10 +85,9 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     }
   }, [visible, checkKeyStatus, addEmptyRow, rows.length]);
 
-  // --- KI Logik ---
   const handlePickImage = async (rowId) => {
     if (!hasApiKey) {
-      setErrorMessage("Bitte API-Key in den Einstellungen hinterlegen.");
+      global.notify("API-Key in Einstellungen fehlt", "error");
       return;
     }
 
@@ -143,7 +115,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
       const { BASE_URL, MODEL, ENDPOINT } = Config.GEMINI_API;
       const apiUrl = `${BASE_URL}/${MODEL}:${ENDPOINT}?key=${apiKey}`;
 
-      const response = await fetch(apiUrl, {
+      const response = await fetch(apiKey ? apiUrl : '', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -161,16 +133,16 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
       
       if (detectedText) {
         updateRow(rowId, { value: detectedText, status: 'ai-done' });
+        global.notify("KI-Analyse erfolgreich", "success");
       } else {
         throw new Error("Nichts erkannt");
       }
     } catch (error) {
-      setErrorMessage("KI Fehler: " + error.message);
+      global.notify("KI Fehler: " + error.message, "error");
       updateRow(rowId, { status: 'manual' });
     }
   };
 
-  // --- Speichern ---
   const handleSaveAll = async () => {
     setIsSubmitting(true);
     try {
@@ -183,7 +155,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
       }
       resetAndClose();
     } catch (error) {
-      setErrorMessage("Fehler beim Speichern der Batch-Daten.");
+      global.notify("Batch-Speichern fehlgeschlagen", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -223,7 +195,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
 
                     <TouchableOpacity 
                       style={styles.selectorBtn}
-                      onPress={() => { setActiveRowId(row.id); setShowDatePicker(true); }}
+                      onPress={() => { setActiveRowId(row.id); setShowDatePickerModal(true); }}
                     >
                       <Text style={styles.selectorText}>{formatDate(row.timestamp)}</Text>
                       <Ionicons name="calendar-outline" size={14} color={Theme.colors.primary} />
@@ -316,16 +288,15 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
           </TouchableOpacity>
         </Modal>
 
-        <Modal visible={showDatePicker} transparent={true} animationType="fade">
+        <Modal visible={showDatePickerModal} transparent={true} animationType="fade">
           <TouchableOpacity 
             style={styles.subOverlay} 
             activeOpacity={1} 
-            onPress={() => { setShowDatePicker(false); setManualDateText(''); }}
+            onPress={() => setShowDatePickerModal(false)}
           >
             <View style={styles.pickerContent}>
               <Text style={styles.pickerTitle}>Datum wählen</Text>
               
-              {/* Quick Select */}
               <View style={styles.quickSelectRow}>
                 {[0, 1].map(daysBack => {
                   const d = new Date();
@@ -335,7 +306,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
                     <TouchableOpacity 
                       key={daysBack} 
                       style={styles.quickBtn} 
-                      onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePicker(false); }}
+                      onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePickerModal(false); }}
                     >
                       <Text style={styles.quickBtnText}>{label}</Text>
                     </TouchableOpacity>
@@ -345,32 +316,25 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
 
               <View style={styles.divider} />
 
-              {/* Manuelle Eingabe */}
-              <Text style={styles.manualLabel}>Oder manuell eingeben:</Text>
-              <View style={styles.manualInputRow}>
-                <TextInput 
-                  style={styles.manualInput}
-                  placeholder="TT.MM.JJ"
-                  value={manualDateText}
-                  onChangeText={setManualDateText}
-                  keyboardType="numeric"
-                  maxLength={10}
-                />
-                <TouchableOpacity style={styles.applyBtn} onPress={handleApplyManualDate}>
-                  <Ionicons name="checkmark-circle" size={32} color={Theme.colors.success} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity 
+                style={styles.fullWidthBtn} 
+                onPress={() => setShowNativePicker(true)}
+              >
+                <Ionicons name="calendar" size={20} color={Theme.colors.primary} />
+                <Text style={styles.fullWidthBtnText}>Anderes Datum wählen</Text>
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         </Modal>
 
-        {errorMessage && (
-          <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{errorMessage}</Text>
-            <TouchableOpacity onPress={() => setErrorMessage(null)}>
-              <Ionicons name="close-circle" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
+        {showNativePicker && (
+          <DateTimePicker
+            value={activeRowId ? new Date(rows.find(r => r.id === activeRowId).timestamp) : new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleNativeDateChange}
+            maximumDate={new Date()}
+          />
         )}
       </View>
     </Modal>
@@ -409,12 +373,8 @@ const styles = StyleSheet.create({
   quickBtn: { flex: 1, backgroundColor: Theme.colors.background, padding: 12, borderRadius: Theme.borderRadius.m, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
   quickBtnText: { fontWeight: Theme.fontWeight.semibold, color: Theme.colors.primary },
   divider: { height: 1, backgroundColor: Theme.colors.border, marginVertical: Theme.spacing.m },
-  manualLabel: { fontSize: Theme.fontSize.caption, color: Theme.colors.textSecondary, marginBottom: 10 },
-  manualInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  manualInput: { flex: 1, backgroundColor: Theme.colors.background, borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, padding: 12, fontSize: Theme.fontSize.body, textAlign: 'center' },
-  applyBtn: { padding: 2 },
+  fullWidthBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 12, backgroundColor: Theme.colors.background, borderRadius: Theme.borderRadius.m, borderWidth: 1, borderColor: Theme.colors.border },
+  fullWidthBtnText: { color: Theme.colors.primary, fontWeight: Theme.fontWeight.semibold },
   pickerItem: { paddingVertical: Theme.spacing.m, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
-  pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' },
-  errorBanner: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: Theme.colors.error, padding: 10, borderRadius: Theme.borderRadius.m, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 9999 },
-  errorText: { color: '#fff', fontSize: Theme.fontSize.caption, flex: 1 }
+  pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' }
 });

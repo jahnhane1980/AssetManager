@@ -1,6 +1,6 @@
 // components/SettingsModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Einstellung für die Seitengröße (Pagination) hinzugefügt
+// Refactoring: Umstellung auf globales Notification-System
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -21,7 +21,6 @@ import { Security } from './Security';
 export default function SettingsModal({ visible, onClose }) {
   const [apiKey, setApiKey] = useState('');
   const [pageSize, setPageSize] = useState('');
-  const [statusMessage, setStatusMessage] = useState(null);
 
   useEffect(() => {
     if (visible) {
@@ -34,20 +33,17 @@ export default function SettingsModal({ visible, onClose }) {
     const size = await Security.getPageSize();
     if (key) setApiKey(key);
     setPageSize(size.toString());
-    setStatusMessage(null);
   };
 
   const handleSave = async () => {
-    // Validierung API-Key (optional, falls nur Seitengröße geändert wird)
     if (apiKey.trim() && apiKey.trim().length < 10) {
-      setStatusMessage({ text: "API-Key zu kurz oder ungültig.", type: 'error' });
+      global.notify("API-Key ungültig", "error");
       return;
     }
 
-    // Validierung Seitengröße
     const parsedSize = parseInt(pageSize, 10);
     if (isNaN(parsedSize) || parsedSize < 1 || parsedSize > 100) {
-      setStatusMessage({ text: "Seitengröße muss zwischen 1 und 100 liegen.", type: 'error' });
+      global.notify("Seitengröße (1-100) wählen", "error");
       return;
     }
 
@@ -56,13 +52,13 @@ export default function SettingsModal({ visible, onClose }) {
       const successSize = await Security.setPageSize(parsedSize);
 
       if (successKey && successSize) {
-        setStatusMessage({ text: "Einstellungen erfolgreich gespeichert!", type: 'success' });
-        setTimeout(onClose, 1500);
+        global.notify("Einstellungen gespeichert", "success");
+        setTimeout(onClose, 1000);
       } else {
-        setStatusMessage({ text: "Fehler beim Speichern.", type: 'error' });
+        global.notify("Fehler beim Speichern", "error");
       }
     } catch (error) {
-      setStatusMessage({ text: "Systemfehler beim Speichern.", type: 'error' });
+      global.notify("Systemfehler beim Speichern", "error");
     }
   };
 
@@ -81,7 +77,6 @@ export default function SettingsModal({ visible, onClose }) {
           </View>
 
           <ScrollView style={styles.content}>
-            {/* Bereich: API-Key */}
             <Text style={styles.label}>Gemini AI API-Key</Text>
             <Text style={styles.description}>
               Wird benötigt, um Screenshots automatisch zu analysieren.
@@ -95,7 +90,6 @@ export default function SettingsModal({ visible, onClose }) {
               autoCapitalize="none"
             />
 
-            {/* Bereich: Pagination */}
             <Text style={styles.label}>Einträge pro Seite (Verlauf)</Text>
             <Text style={styles.description}>
               Legt fest, wie viele Einträge im Vermögensverlauf gleichzeitig angezeigt werden.
@@ -107,12 +101,6 @@ export default function SettingsModal({ visible, onClose }) {
               placeholder="15"
               keyboardType="numeric"
             />
-
-            {statusMessage && (
-              <Text style={[styles.status, statusMessage.type === 'error' ? styles.error : styles.success]}>
-                {statusMessage.text}
-              </Text>
-            )}
 
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
               <Text style={styles.saveBtnText}>Speichern</Text>
@@ -137,8 +125,5 @@ const styles = StyleSheet.create({
   description: { fontSize: Theme.fontSize.description, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m, lineHeight: 18 },
   input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: Theme.fontSize.body, marginBottom: Theme.spacing.l, color: Theme.colors.text },
   saveBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center', marginBottom: Theme.spacing.m },
-  saveBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold },
-  status: { textAlign: 'center', marginBottom: 15, fontWeight: Theme.fontWeight.medium },
-  error: { color: Theme.colors.error },
-  success: { color: Theme.colors.success }
+  saveBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold }
 });

@@ -55,15 +55,16 @@ Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, s
 * **Backup & Restore**: Export und Import der lokalen Datenbank als verschlüsselte Datei zur externen Datensicherung. [in progress]
 * **Währungs-Flexibilität**: Unterstützung für verschiedene Basiswährungen und spezielle Ansichten für Krypto-Assets.
 
+## Umgesetzte Erweiterungen 
+### ⚡ Technische Optimierungen
+* **Performance-Listen**: Umstellung der Portfolio- und Historien-Anzeige auf `FlatList` für effizienteres Rendering großer Datenmengen.
+* **DB-Indizes**: Optimierung der SQLite-Abfragegeschwindigkeit durch Indizes auf den Spalten `timestamp` und `provider`.
+
 ### 🎨 UX & Visualisierung
 * **Interaktive Charts**: "On-Touch"-Tooltips zur Anzeige exakter Beträge im Graphen.
 * **Validierte Eingabe**: Optimierung der manuellen Datumseingabe durch Input-Masking oder native Picker-Integration.
 * **Zentrales UI-Feedback**: Implementierung eines globalen Notification-Systems für konsistente Erfolgs- und Fehlermeldungen.
 
-## Umgesetzte Erweiterungen 
-### ⚡ Technische Optimierungen
-* **Performance-Listen**: Umstellung der Portfolio- und Historien-Anzeige auf `FlatList` für effizienteres Rendering großer Datenmengen.
-* **DB-Indizes**: Optimierung der SQLite-Abfragegeschwindigkeit durch Indizes auf den Spalten `timestamp` und `provider`.
 
 ## Möglich für V2
 * **Biometrische Sperre**: Optionale Zugriffssicherung der App mittels FaceID oder Fingerabdruck. 

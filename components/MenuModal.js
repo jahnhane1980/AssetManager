@@ -1,6 +1,6 @@
 // components/MenuModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Menüeintrag für Backup & Restore hinzugefügt
+// Update: Menüeintrag für den Export der Log-Datei hinzugefügt
 
 import React from 'react';
 import { 
@@ -14,8 +14,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
+import LogService from '../services/LogService'; // Neu importiert
 
 export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHistory, onOpenDeleteConfirm, onOpenBackup }) {
+  
+  const handleShareLogs = async () => {
+    await LogService.shareLogs();
+    onClose();
+  };
+
   return (
     <Modal visible={visible} animationType="fade" transparent={true}>
       <TouchableWithoutFeedback onPress={onClose}>
@@ -38,6 +45,16 @@ export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHist
             >
               <Ionicons name="cloud-upload-outline" size={20} color={Theme.colors.text} style={styles.icon} />
               <Text style={styles.menuText}>Backup & Restore</Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity 
+              style={styles.menuItem} 
+              onPress={handleShareLogs}
+            >
+              <Ionicons name="document-text-outline" size={20} color={Theme.colors.text} style={styles.icon} />
+              <Text style={styles.menuText}>Logs senden</Text>
             </TouchableOpacity>
 
             <View style={styles.divider} />

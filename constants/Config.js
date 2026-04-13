@@ -1,7 +1,6 @@
 // constants/Config.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Technische Infrastruktur & API-Konfiguration
-// Update: Validierte Google OAuth Web-Client ID eingetragen
+// Update: Log-Konfiguration hinzugefügt
 
 export const Config = {
   DATABASE: {
@@ -18,6 +17,10 @@ export const Config = {
   PAGINATION: {
     DEFAULT_PAGE_SIZE: 15,
   },
+  LOGGING: {
+    FILE_NAME: 'app_debug_logs.txt',
+    ROTATION_INTERVAL_MS: 24 * 60 * 60 * 1000, // 24 Stunden
+  },
   GEMINI_API: {
     BASE_URL: 'https://generativelanguage.googleapis.com/v1/models',
     MODEL: 'gemini-2.5-flash',
@@ -29,10 +32,8 @@ export const Config = {
     MIME_TYPE_DB: 'application/x-sqlite3',
     MIME_TYPE_FOLDER: 'application/vnd.google-apps.folder',
     SCOPES: ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive.install'],
-    // IDs aus der Cloud Console
     CLIENT_ID_IOS: 'DEINE_IOS_CLIENT_ID.apps.googleusercontent.com',
     CLIENT_ID_ANDROID: 'DEINE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
-    // Übertragene ID aus deinem Screenshot für die Nutzung im Expo-Proxy/Web
     CLIENT_ID_WEB: '452103334238-nafcpc7l8dfsv9vl1md9gc06509ld5la.apps.googleusercontent.com',
   }
 };

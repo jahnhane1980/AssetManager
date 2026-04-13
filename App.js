@@ -1,6 +1,6 @@
 // App.js
-// Regel 0: Absolute Transparenz | Regel 6: Vollständiger Dateiinhalt
-// Refactoring: Einbindung des BackupModals
+// Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
+// Refactoring: Einbindung des globalen LogServices und Fehler-Logging
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, ActivityIndicator } from 'react-native';
@@ -17,9 +17,9 @@ import SettingsModal from './components/SettingsModal';
 import MenuModal from './components/MenuModal';
 import HistoryModal from './components/HistoryModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
-import BackupModal from './components/BackupModal'; // Neu importiert
+import BackupModal from './components/BackupModal';
+import LogService from './services/LogService'; // Neu importiert
 
-// Importiere den neuen Hook (Pfad anpassen falls nötig)
 import { usePortfolioData } from './hooks/usePortfolioData';
 
 function MainContent() {
@@ -27,7 +27,6 @@ function MainContent() {
   const [isReady, setIsReady] = useState(false);
   const [currentTimeLimit, setCurrentTimeLimit] = useState(0);
   
-  // Custom Hook nutzt den lokalen State (isReady, timeLimit)
   const { 
     totalValue, 
     performance, 
@@ -37,22 +36,31 @@ function MainContent() {
     refresh 
   } = usePortfolioData(isReady, currentTimeLimit);
   
-  // Modal Visibility State
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [isSettingsVisible, setSettingsVisible] = useState(false);
   const [isHistoryVisible, setHistoryVisible] = useState(false);
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [isBackupVisible, setBackupVisible] = useState(false); // Neuer State
+  const [isBackupVisible, setBackupVisible] = useState(false);
 
   useEffect(() => {
     async function initApp() {
       try {
+        // 1. Globalen Logger registrieren
+        global.log = (msg, type) => LogService.log(msg, type);
+        
+        // 2. LogService initialisieren (24h Check & Rotation)
+        await LogService.init();
+        global.log("Initialisierung der System-Komponenten gestartet...");
+
         await Security.getOrCreateMasterKey();
         await AssetRepository.initialize();
+        
         setIsReady(true);
+        global.log("App erfolgreich bereitgestellt.", "SUCCESS");
       } catch (error) {
         console.error("Initialisierungsfehler:", error);
+        if (global.log) global.log(`Schwerer Fehler beim Start: ${error.message}`, "ERROR");
       }
     }
     initApp();
@@ -61,19 +69,21 @@ function MainContent() {
   const handleSaveAsset = async (provider, value, timestamp) => {
     try {
       await AssetRepository.saveAsset(provider, value, timestamp);
-      await refresh(); // Hook-Refresh triggern
+      global.log(`Asset gespeichert: ${provider} - ${value}€`);
+      await refresh(); 
     } catch (error) {
-      console.error("Speicherfehler:", error);
+      global.log(`Speicherfehler (${provider}): ${error.message}`, "ERROR");
     }
   };
 
   const handleDeleteAllData = async () => {
     try {
       await AssetRepository.clearAllData();
+      global.log("Vollständiger Daten-Reset durch den Nutzer.", "WARN");
       setDeleteModalVisible(false);
       await refresh();
     } catch (error) {
-      console.error("Fehler beim Löschen:", error);
+      global.log(`Fehler beim Löschen der Daten: ${error.message}`, "ERROR");
     }
   };
 
@@ -116,7 +126,7 @@ function MainContent() {
         onOpenSettings={() => setSettingsVisible(true)}
         onOpenHistory={() => setHistoryVisible(true)}
         onOpenDeleteConfirm={() => setDeleteModalVisible(true)}
-        onOpenBackup={() => setBackupVisible(true)} // Neuer Menüpunkt
+        onOpenBackup={() => setBackupVisible(true)}
       />
       
       <SettingsModal visible={isSettingsVisible} onClose={() => setSettingsVisible(false)} />

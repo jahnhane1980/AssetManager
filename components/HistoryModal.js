@@ -1,6 +1,6 @@
 // components/HistoryModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Implementierung der Pagination und echten Datenanzeige
+// Refactoring: Umstellung auf FlatList und fixiertes Pagination-Layout
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -9,7 +9,7 @@ import {
   View, 
   Modal, 
   TouchableOpacity, 
-  ScrollView,
+  FlatList,
   Platform,
   ActivityIndicator
 } from 'react-native';
@@ -25,12 +25,10 @@ export default function HistoryModal({ visible, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // Laden der Daten
   const fetchHistory = useCallback(async (page, size) => {
     setIsLoading(true);
     try {
       const offset = (page - 1) * size;
-      // Wir holen "size + 1" Einträge, um zu prüfen, ob es eine nächste Seite gibt
       const data = await AssetRepository.getHistory(0, size + 1, offset, 'DESC');
       
       if (data.length > size) {
@@ -47,7 +45,6 @@ export default function HistoryModal({ visible, onClose }) {
     }
   }, []);
 
-  // Initiales Laden und bei Sichtbarkeit
   useEffect(() => {
     if (visible) {
       const init = async () => {
@@ -87,6 +84,18 @@ export default function HistoryModal({ visible, onClose }) {
     });
   };
 
+  const renderItem = ({ item }) => (
+    <View style={styles.historyItem}>
+      <View style={styles.itemInfo}>
+        <Ionicons name="time-outline" size={18} color={Theme.colors.textSecondary} style={styles.icon} />
+        <Text style={styles.dateText}>{formatDate(item.timestamp)}</Text>
+      </View>
+      <Text style={styles.valueText}>
+        {item.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+      </Text>
+    </View>
+  );
+
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
       <View style={styles.container}>
@@ -97,54 +106,46 @@ export default function HistoryModal({ visible, onClose }) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.mainContent}>
           <Text style={styles.sectionTitle}>Aktivitäten (Seite {currentPage})</Text>
           
           {isLoading ? (
             <ActivityIndicator size="large" color={Theme.colors.primary} style={{ marginTop: 20 }} />
-          ) : history.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Keine Einträge vorhanden.</Text>
-            </View>
           ) : (
-            <View style={styles.list}>
-              {history.map((item, index) => (
-                <View key={item.timestamp || index} style={styles.historyItem}>
-                  <View style={styles.itemInfo}>
-                    <Ionicons name="time-outline" size={18} color={Theme.colors.textSecondary} style={styles.icon} />
-                    <Text style={styles.dateText}>{formatDate(item.timestamp)}</Text>
-                  </View>
-                  <Text style={styles.valueText}>
-                    {item.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
-                  </Text>
+            <FlatList
+              data={history}
+              renderItem={renderItem}
+              keyExtractor={(item, index) => item.timestamp?.toString() || index.toString()}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>Keine Einträge vorhanden.</Text>
                 </View>
-              ))}
-            </View>
+              }
+            />
           )}
+        </View>
 
-          {/* Pagination Controls */}
-          <View style={styles.pagination}>
-            <TouchableOpacity 
-              style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]} 
-              onPress={handlePrevPage}
-              disabled={currentPage === 1 || isLoading}
-            >
-              <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? Theme.colors.border : Theme.colors.white} />
-              <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>Zurück</Text>
-            </TouchableOpacity>
+        {/* Fixierte Pagination-Controls */}
+        <View style={styles.paginationFooter}>
+          <TouchableOpacity 
+            style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]} 
+            onPress={handlePrevPage}
+            disabled={currentPage === 1 || isLoading}
+          >
+            <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? Theme.colors.border : Theme.colors.white} />
+            <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>Zurück</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.pageBtn, !hasMore && styles.pageBtnDisabled]} 
-              onPress={handleNextPage}
-              disabled={!hasMore || isLoading}
-            >
-              <Text style={[styles.pageBtnText, !hasMore && styles.pageBtnTextDisabled]}>Weiter</Text>
-              <Ionicons name="chevron-forward" size={20} color={!hasMore ? Theme.colors.border : Theme.colors.white} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={{ height: 40 }} />
-        </ScrollView>
+          <TouchableOpacity 
+            style={[styles.pageBtn, !hasMore && styles.pageBtnDisabled]} 
+            onPress={handleNextPage}
+            disabled={!hasMore || isLoading}
+          >
+            <Text style={[styles.pageBtnText, !hasMore && styles.pageBtnTextDisabled]}>Weiter</Text>
+            <Ionicons name="chevron-forward" size={20} color={!hasMore ? Theme.colors.border : Theme.colors.white} />
+          </TouchableOpacity>
+        </View>
       </View>
     </Modal>
   );
@@ -165,9 +166,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: Theme.fontSize.header, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
   closeBtnContainer: { padding: 5 },
-  content: { padding: Theme.spacing.l },
+  mainContent: { flex: 1, paddingHorizontal: Theme.spacing.l, paddingTop: Theme.spacing.l },
   sectionTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.semibold, color: Theme.colors.text, marginBottom: Theme.spacing.m },
-  list: { gap: Theme.spacing.s },
+  listContent: { paddingBottom: Theme.spacing.m },
   historyItem: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
@@ -175,6 +176,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface, 
     padding: Theme.spacing.m, 
     borderRadius: Theme.borderRadius.m,
+    marginBottom: Theme.spacing.s,
     elevation: 1,
     shadowColor: Theme.colors.shadow,
     shadowOffset: { width: 0, height: 1 },
@@ -187,10 +189,14 @@ const styles = StyleSheet.create({
   valueText: { color: Theme.colors.text, fontWeight: Theme.fontWeight.bold, fontSize: Theme.fontSize.body },
   emptyContainer: { padding: 40, alignItems: 'center' },
   emptyText: { color: Theme.colors.textSecondary, fontStyle: 'italic' },
-  pagination: { 
+  paginationFooter: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    marginTop: Theme.spacing.xl,
+    padding: Theme.spacing.l,
+    paddingBottom: Platform.OS === 'ios' ? 40 : Theme.spacing.l,
+    backgroundColor: Theme.colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: Theme.colors.border,
     gap: Theme.spacing.m 
   },
   pageBtn: { 

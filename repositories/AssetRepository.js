@@ -1,8 +1,7 @@
 // repositories/AssetRepository.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Kapselung der SQLite-Logik mit Aggregations-Unterstützung
-// Fix: Snapshot-View nutzt nun den chronologisch letzten Stand (MAX timestamp) statt der Insert-Reihenfolge
-// Erweiterung: Zugriff auf DB-Dateinamen für Backup-Zwecke
+// Optimierung: Hinzufügen von Indizes zur Beschleunigung von Abfragen und Triggern
 
 import * as SQLite from 'expo-sqlite';
 import { Config } from '../constants/Config';
@@ -13,7 +12,7 @@ class AssetRepository {
   }
 
   /**
-   * Initialisiert die Datenbank und erstellt das Schema (Tables, View, Trigger).
+   * Initialisiert die Datenbank und erstellt das Schema (Tables, View, Trigger, Indizes).
    */
   async initialize() {
     if (this.db) return this.db;
@@ -39,7 +38,16 @@ class AssetRepository {
           total_value REAL NOT NULL
         );
 
-        -- 3. Snapshot View: Zeigt immer den chronologisch aktuellsten Wert pro Anbieter
+        -- 3. Indizes für Performance-Optimierung (Neu)
+        -- Beschleunigt die Snapshot-View (Suche nach letztem Stand pro Provider)
+        CREATE INDEX IF NOT EXISTS idx_entries_provider_ts 
+        ON ${TABLE_ENTRIES} (provider, timestamp DESC);
+        
+        -- Beschleunigt Zeitbereichs-Abfragen und Trigger-Berechnungen
+        CREATE INDEX IF NOT EXISTS idx_entries_timestamp 
+        ON ${TABLE_ENTRIES} (timestamp);
+
+        -- 4. Snapshot View: Zeigt immer den chronologisch aktuellsten Wert pro Anbieter
         DROP VIEW IF EXISTS ${VIEW_SNAPSHOTS};
         CREATE VIEW ${VIEW_SNAPSHOTS} AS
         SELECT provider, value, timestamp
@@ -52,7 +60,7 @@ class AssetRepository {
             LIMIT 1
         );
 
-        -- 4. Trigger: Automatische Aktualisierung der Daily History bei neuen Einträgen
+        -- 5. Trigger: Automatische Aktualisierung der Daily History bei neuen Einträgen
         DROP TRIGGER IF EXISTS tr_update_daily_history;
         CREATE TRIGGER tr_update_daily_history
         AFTER INSERT ON ${TABLE_ENTRIES}
@@ -107,7 +115,6 @@ class AssetRepository {
     if (!this.db) await this.initialize();
     const order = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
     
-    // Umwandlung des Zeitstempels in ISO-Datum für SQLite Vergleich
     const dateLimit = new Date(timeLimit).toISOString().split('T')[0];
 
     let query = "";
@@ -116,7 +123,6 @@ class AssetRepository {
     if (aggregation === 'DAILY') {
       query = `SELECT date as timestamp, total_value as value FROM ${Config.DATABASE.TABLE_DAILY_HISTORY} WHERE date >= ?`;
     } else {
-      // Mapping der Aggregations-Patterns für strftime
       const patterns = {
         'WEEKLY': '%Y-%W',
         'MONTHLY': '%Y-%m',
@@ -124,7 +130,6 @@ class AssetRepository {
       };
       const pattern = patterns[aggregation] || '%Y-%m';
       
-      // Wir wählen jeweils den letzten Tag der Periode aus, um den Endstand anzuzeigen
       query = `
         SELECT date as timestamp, total_value as value 
         FROM ${Config.DATABASE.TABLE_DAILY_HISTORY} 

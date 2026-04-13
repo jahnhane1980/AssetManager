@@ -33,7 +33,7 @@ export const Config = {
     MIME_TYPE_FOLDER: 'application/vnd.google-apps.folder',
     SCOPES: ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive.install'],
     CLIENT_ID_IOS: 'DEINE_IOS_CLIENT_ID.apps.googleusercontent.com',
-    CLIENT_ID_ANDROID: 'DEINE_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+    CLIENT_ID_ANDROID: '452103334238-8s17v20j71hl8qc3i5jvmhvnsfojdsba.apps.googleusercontent.com',
     CLIENT_ID_WEB: '452103334238-nafcpc7l8dfsv9vl1md9gc06509ld5la.apps.googleusercontent.com',
   }
 };

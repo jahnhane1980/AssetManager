@@ -1,5 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
+// Refactoring: Integration provider-spezifischer Prompts für verbesserte KI-Extraktion
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -29,10 +30,12 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
+  // States für Bild-Vorschau
   const [previewRow, setPreviewRow] = useState(null);
   const [tempAmount, setTempAmount] = useState('');
   const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
 
+  // States für Picker
   const [activeRowId, setActiveRowId] = useState(null);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
   const [showDatePickerModal, setShowDatePickerModal] = useState(false);

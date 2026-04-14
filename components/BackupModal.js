@@ -1,6 +1,6 @@
 // components/BackupModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung auf nativen Android-OAuth-Flow (ohne Expo Proxy)
+// Refactoring: Automatische Redirect-URI für sicheren Google OAuth Flow
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -32,19 +32,12 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
 
   const dbPath = `${FileSystem.documentDirectory}SQLite/${Config.DATABASE.NAME}`;
 
-  // Nativer Redirect-Pfad für Android mit explizitem Pfad
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: 'com.jahnhane.assetmanager',
-    path: 'oauthredirect',
-  });
-  //alt 
-  //const redirectUri = AuthSession.makeRedirectUri({
-  //  useProxy: false,
-  //});
+  // Vollautomatische Generierung der Redirect-URI durch Expo
+  const redirectUri = AuthSession.makeRedirectUri();
 
-  // In BackupModal.js suchen und davor einfügen:
+  // Konsolen-Check für Debugging-Zwecke
   console.log("AKTUELLER CLIENT-ID-CHECK:", Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID);
-  console.log("PROXY-MODUS:", false); // Hier siehst du, ob dein Code-Stand stimmt
+  console.log("GENERIERTE REDIRECT-URI:", redirectUri);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID,

@@ -1,16 +1,19 @@
 // components/AddAssetButton.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Kapselung des Floating Action Buttons (FAB) mit Debug-Logs
+// Fokus: Kapselung des Floating Action Buttons (FAB) mit Navigation-Hook
 
 import React from 'react';
 import { StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { Theme } from './Theme';
 
-export default function AddAssetButton({ onPress }) {
+export default function AddAssetButton() {
+  const navigation = useNavigation();
+
   const handlePress = () => {
-    console.log("[DEBUG] AddAssetButton: onPress ausgelöst");
-    if (onPress) onPress();
+    console.log("[DEBUG] AddAssetButton: Navigiere zu AddAsset");
+    navigation.navigate('AddAsset', { initialProvider: null });
   };
 
   return (
@@ -36,5 +39,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-  },
+    zIndex: 99
+  }
 });

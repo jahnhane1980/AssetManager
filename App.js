@@ -1,11 +1,11 @@
 // App.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Einbau von SettingsScreen und HistoryScreen in den Navigation Stack
+// Refactoring: BackupModal zu Screen umgewandelt. Menu und Delete bleiben Modale.
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { Theme } from './components/Theme';
@@ -14,16 +14,15 @@ import AssetRepository from './repositories/AssetRepository';
 import TotalValueHeader from './components/TotalValueHeader';
 import PortfolioList from './components/PortfolioList';
 import AddAssetButton from './components/AddAssetButton';
-import AddAssetModal from './components/AddAssetModal';
 import MenuModal from './components/MenuModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
-import BackupModal from './components/BackupModal';
 import Notification from './components/Notification';
 import LogService from './services/LogService';
 
-// Neue Screens importieren
 import SettingsScreen from './components/SettingsScreen';
 import HistoryScreen from './components/HistoryScreen';
+import AddAssetScreen from './components/AddAssetScreen';
+import BackupScreen from './components/BackupScreen'; // Neu importiert
 
 import { usePortfolioData } from './hooks/usePortfolioData';
 
@@ -44,13 +43,15 @@ function HomeScreen({ navigation }) {
     refresh 
   } = usePortfolioData(isReady, currentTimeLimit);
   
-  const [isAddModalVisible, setAddModalVisible] = useState(false);
-  const [selectedInitialProvider, setSelectedInitialProvider] = useState(null);
+  // Die verbleibenden Modal-States
   const [isMenuVisible, setMenuVisible] = useState(false);
-  
-  // Settings & History State entfernt, da diese nun über die Navigation laufen
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [isBackupVisible, setBackupVisible] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isReady) refresh();
+    }, [isReady, refresh])
+  );
 
   useEffect(() => {
     global.notify = (message, type = 'info') => setActiveNotification({ message, type });
@@ -69,16 +70,6 @@ function HomeScreen({ navigation }) {
     initApp();
   }, []);
 
-  const handleSaveAsset = async (provider, value, timestamp) => {
-    try {
-      await AssetRepository.saveAsset(provider, value, timestamp);
-      global.notify(`${provider}: Wert gespeichert`, 'success');
-      await refresh(); 
-    } catch (error) {
-      global.notify("Fehler beim Speichern", "error");
-    }
-  };
-
   const handleDeleteAllData = async () => {
     try {
       await AssetRepository.clearAllData();
@@ -88,15 +79,6 @@ function HomeScreen({ navigation }) {
     } catch (error) {
       global.notify("Fehler beim Löschen", "error");
     }
-  };
-
-  const handleOpenAddModal = (provider = null) => {
-    setSelectedInitialProvider(provider);
-    setAddModalVisible(true);
-  };
-
-  const handleOpenMenu = () => {
-    setMenuVisible(true);
   };
 
   if (!isReady) {
@@ -113,7 +95,7 @@ function HomeScreen({ navigation }) {
         <TotalValueHeader 
           totalValue={totalValue} 
           performance={performance} 
-          onMenuPress={handleOpenMenu} 
+          onMenuPress={() => setMenuVisible(true)} 
         />
         <View style={styles.content}>
           <PortfolioList 
@@ -121,41 +103,26 @@ function HomeScreen({ navigation }) {
             chartData={chartData}
             aggregation={aggregation}
             onFilterChange={(limit) => setCurrentTimeLimit(limit)}
-            onProviderPress={(p) => handleOpenAddModal(p)}
+            onProviderPress={(p) => navigation.navigate('AddAsset', { initialProvider: p })}
           />
         </View>
-        <View style={styles.buttonLayer}>
-          <AddAssetButton onPress={() => handleOpenAddModal(null)} />
-        </View>
+        <AddAssetButton />
       </View>
 
-      <AddAssetModal 
-        visible={isAddModalVisible} 
-        initialProvider={selectedInitialProvider}
-        onClose={() => setAddModalVisible(false)} 
-        onSave={handleSaveAsset} 
-      />
-      
       <MenuModal 
         visible={isMenuVisible} 
         onClose={() => setMenuVisible(false)} 
-        // Hier leiten wir den Menüklick direkt auf den Navigation-Stack um
         onOpenSettings={() => navigation.navigate('Settings')}
         onOpenHistory={() => navigation.navigate('History')}
         onOpenDeleteConfirm={() => setDeleteModalVisible(true)}
-        onOpenBackup={() => setBackupVisible(true)}
+        // Backup leitet nun auf den neuen Screen um
+        onOpenBackup={() => navigation.navigate('Backup')}
       />
       
       <DeleteConfirmationModal 
         visible={isDeleteModalVisible} 
         onClose={() => setDeleteModalVisible(false)} 
         onConfirm={handleDeleteAllData}
-      />
-
-      <BackupModal 
-        visible={isBackupVisible} 
-        onClose={() => setBackupVisible(false)} 
-        onRestoreSuccess={refresh}
       />
 
       <Notification 
@@ -172,9 +139,11 @@ export default function App() {
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Home" component={HomeScreen} />
-          {/* Unsere beiden neuen Screens wurden hier registriert */}
           <Stack.Screen name="Settings" component={SettingsScreen} />
           <Stack.Screen name="History" component={HistoryScreen} />
+          <Stack.Screen name="AddAsset" component={AddAssetScreen} />
+          {/* Neuer Backup Screen registriert */}
+          <Stack.Screen name="Backup" component={BackupScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
@@ -185,11 +154,5 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
   mainLayer: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content: { flex: 1 },
-  buttonLayer: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    zIndex: 50,
-  }
+  content: { flex: 1 }
 });

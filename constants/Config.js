@@ -1,6 +1,6 @@
 // constants/Config.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Update: Log-Konfiguration hinzugefügt
+// Update: Anpassung der Gemini API URL auf v1beta
 
 export const Config = {
   DATABASE: {
@@ -22,7 +22,7 @@ export const Config = {
     ROTATION_INTERVAL_MS: 24 * 60 * 60 * 1000, // 24 Stunden
   },
   GEMINI_API: {
-    BASE_URL: 'https://generativelanguage.googleapis.com/v1/models',
+    BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/models',
     MODEL: 'gemini-2.5-flash',
     ENDPOINT: 'generateContent',
   },

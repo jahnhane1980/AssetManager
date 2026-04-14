@@ -51,8 +51,6 @@ Deine Finanzdaten sind sensibel. Deshalb speichert der AssetManager alle Buchung
 
 Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, sind folgende Erweiterungen für zukünftige Versionen geplant:
 
-### 🔐 Neue Funktionen
-* **Backup & Restore**: Export und Import der lokalen Datenbank als verschlüsselte Datei zur externen Datensicherung. [in progress]
 
 ## Umgesetzte Erweiterungen 
 ### ⚡ Technische Optimierungen
@@ -63,6 +61,9 @@ Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, s
 * **Interaktive Charts**: "On-Touch"-Tooltips zur Anzeige exakter Beträge im Graphen.
 * **Validierte Eingabe**: Optimierung der manuellen Datumseingabe durch Input-Masking oder native Picker-Integration.
 * **Zentrales UI-Feedback**: Implementierung eines globalen Notification-Systems für konsistente Erfolgs- und Fehlermeldungen.
+
+### 🔐 Neue Funktionen
+* **Backup & Restore**: Export und Import der lokalen Datenbank als verschlüsselte Datei zur externen Datensicherung. 
 
 
 ## Möglich für V2

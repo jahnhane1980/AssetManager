@@ -1,10 +1,14 @@
 // App.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fix: Z-Order und Layout-Struktur bereinigt, Support für vorausgewählte Provider
+// Refactoring: NavigationContainer und Native Stack Navigator als Grundgerüst hinzugefügt, MainContent zu HomeScreen extrahiert
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
 import { Theme } from './components/Theme';
 import { Security } from './components/Security';
 import AssetRepository from './repositories/AssetRepository';
@@ -22,7 +26,9 @@ import LogService from './services/LogService';
 
 import { usePortfolioData } from './hooks/usePortfolioData';
 
-function MainContent() {
+const Stack = createNativeStackNavigator();
+
+function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [isReady, setIsReady] = useState(false);
   const [currentTimeLimit, setCurrentTimeLimit] = useState(0);
@@ -164,7 +170,17 @@ function MainContent() {
   );
 }
 
-export default function App() { return (<SafeAreaProvider><MainContent /></SafeAreaProvider>); }
+export default function App() { 
+  return (
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Home" component={HomeScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
+  ); 
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },

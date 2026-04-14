@@ -1,6 +1,6 @@
 // components/HistoryScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung von JS-Modal auf echten Navigation-Screen
+// Refactoring: Auslagerung des Headers in ScreenHeader.js
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import AssetRepository from '../repositories/AssetRepository';
 import { Security } from './Security';
+import ScreenHeader from './ScreenHeader'; // Neu importiert
 
 export default function HistoryScreen({ navigation }) {
   const [history, setHistory] = useState([]);
@@ -95,12 +96,10 @@ export default function HistoryScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Vermögensverlauf</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtnContainer}>
-          <Ionicons name="close" size={24} color={Theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader 
+        title="Vermögensverlauf" 
+        onClose={() => navigation.goBack()} 
+      />
 
       <View style={styles.mainContent}>
         <Text style={styles.sectionTitle}>Aktivitäten (Seite {currentPage})</Text>
@@ -150,19 +149,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Theme.colors.background
   },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: Theme.spacing.l, 
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: Theme.spacing.m,
-    backgroundColor: Theme.colors.surface,
-    borderBottomWidth: 1, 
-    borderBottomColor: Theme.colors.border 
-  },
-  headerTitle: { fontSize: Theme.fontSize.header, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  closeBtnContainer: { padding: 5 },
   mainContent: { flex: 1, paddingHorizontal: Theme.spacing.l, paddingTop: Theme.spacing.l },
   sectionTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.semibold, color: Theme.colors.text, marginBottom: Theme.spacing.m },
   listContent: { paddingBottom: Theme.spacing.m },

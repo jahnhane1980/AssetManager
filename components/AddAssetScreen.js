@@ -1,8 +1,6 @@
 // components/AddAssetScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fix: AppConstants.PROVIDERS für die Liste wiederhergestellt, 
-// Fix: Zweistufiger Datumswähler (Heute/Gestern + Nativ) inkl. korrekter Vorbelegung eingebaut
-// Refactoring: Navigation-Screen Logik mit der stabilen Modal-Logik vereint
+// Refactoring: Integration des gemeinsamen ScreenHeader Komponenten
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -25,6 +23,7 @@ import { AppConstants } from '../constants/AppConstants';
 import AssetRepository from '../repositories/AssetRepository';
 import ImagePreviewModal from './ImagePreviewModal';
 import AssetInputRow from './AssetInputRow';
+import ScreenHeader from './ScreenHeader'; // Neu importiert
 
 export default function AddAssetScreen({ navigation, route }) {
   const { initialProvider } = route.params || {};
@@ -72,13 +71,11 @@ export default function AddAssetScreen({ navigation, route }) {
 
   useEffect(() => {
     checkKeyStatus();
-    // Wenn die Liste leer ist, initiieren wir die erste Zeile (ggf. mit initialProvider)
     if (rows.length === 0) {
       addEmptyRow(initialProvider); 
     }
   }, [checkKeyStatus, addEmptyRow, rows.length, initialProvider]);
 
-  // --- Datum Logik ---
   const handleNativeDateChange = (event, selectedDate) => {
     setShowNativePicker(false);
     if (selectedDate && activeRowId) {
@@ -87,7 +84,6 @@ export default function AddAssetScreen({ navigation, route }) {
     }
   };
 
-  // --- KI & Kamera Logik ---
   const handlePickImage = async (rowId) => {
     if (!hasApiKey) {
       global.notify("API-Key fehlt", "error");
@@ -159,7 +155,6 @@ export default function AddAssetScreen({ navigation, route }) {
     }
   };
 
-  // --- Speichern ---
   const handleSaveAll = async () => {
     setIsSubmitting(true);
     let savedCount = 0;
@@ -174,7 +169,7 @@ export default function AddAssetScreen({ navigation, route }) {
       }
       if (savedCount > 0) {
         global.notify(`${savedCount} Werte gespeichert`, "success");
-        navigation.goBack(); // Zurück zum HomeScreen
+        navigation.goBack(); 
       } else {
         global.notify("Keine gültigen Werte zum Speichern", "error");
       }
@@ -185,7 +180,6 @@ export default function AddAssetScreen({ navigation, route }) {
     }
   };
 
-  // --- Preview Logik ---
   const formatDate = (ts) => new Date(ts).toLocaleDateString('de-DE');
 
   const openPreview = (row) => {
@@ -206,12 +200,10 @@ export default function AddAssetScreen({ navigation, route }) {
     <View style={styles.container}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardContainer}>
         
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Werte erfassen</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={Theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader 
+          title="Werte erfassen" 
+          onClose={() => navigation.goBack()} 
+        />
 
         <ScrollView style={styles.scrollArea}>
           {rows.map((row) => (
@@ -258,7 +250,6 @@ export default function AddAssetScreen({ navigation, route }) {
         showFeedback={showSuccessFeedback}
       />
 
-      {/* --- Provider Picker Modal --- */}
       {showProviderPicker && (
         <View style={styles.subOverlayContainer}>
           <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowProviderPicker(false)} />
@@ -275,7 +266,6 @@ export default function AddAssetScreen({ navigation, route }) {
         </View>
       )}
 
-      {/* --- Date Picker Dialog --- */}
       {showDatePickerModal && (
         <View style={styles.subOverlayContainer}>
           <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowDatePickerModal(false)} />
@@ -302,7 +292,6 @@ export default function AddAssetScreen({ navigation, route }) {
         </View>
       )}
 
-      {/* --- Native Date Picker --- */}
       {showNativePicker && (
         <DateTimePicker
           value={activeRowId ? new Date(rows.find(r => r.id === activeRowId).timestamp) : new Date()}
@@ -319,9 +308,6 @@ export default function AddAssetScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
   keyboardContainer: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, paddingTop: Platform.OS === 'ios' ? 60 : 20, backgroundColor: Theme.colors.surface, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },
-  headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  closeBtn: { padding: 5 },
   scrollArea: { padding: Theme.spacing.m, flex: 1 },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: Theme.spacing.l, gap: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginTop: 5 },
   addBtnText: { color: Theme.colors.textSecondary, fontWeight: Theme.fontWeight.medium },
@@ -329,8 +315,6 @@ const styles = StyleSheet.create({
   saveAllBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
   saveAllBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold },
   disabledBtn: { opacity: 0.6 },
-  
-  // Picker Styles aus dem alten Modal
   subOverlayContainer: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 110 },
   subOverlayBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   pickerContent: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l, elevation: 5 },

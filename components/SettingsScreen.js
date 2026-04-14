@@ -1,6 +1,6 @@
 // components/SettingsScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung von JS-Modal auf echten Navigation-Screen
+// Refactoring: Auslagerung des Headers in ScreenHeader.js
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -13,9 +13,9 @@ import {
   Platform,
   ScrollView
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import { Security } from './Security';
+import ScreenHeader from './ScreenHeader'; // Neu importiert
 
 export default function SettingsScreen({ navigation }) {
   const [apiKey, setApiKey] = useState('');
@@ -65,12 +65,10 @@ export default function SettingsScreen({ navigation }) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardContainer}
       >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Einstellungen</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtnContainer}>
-            <Ionicons name="close" size={24} color={Theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader 
+          title="Einstellungen" 
+          onClose={() => navigation.goBack()} 
+        />
 
         <ScrollView style={styles.content}>
           <Text style={styles.label}>Gemini AI API-Key</Text>
@@ -117,18 +115,6 @@ const styles = StyleSheet.create({
   keyboardContainer: { 
     flex: 1 
   },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    padding: Theme.spacing.l, 
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    borderBottomWidth: 1, 
-    borderBottomColor: Theme.colors.border, 
-    alignItems: 'center',
-    backgroundColor: Theme.colors.surface
-  },
-  headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  closeBtnContainer: { padding: 5 },
   content: { padding: Theme.spacing.l, flex: 1 },
   label: { fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.semibold, color: Theme.colors.text, marginBottom: 5 },
   description: { fontSize: Theme.fontSize.description, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m, lineHeight: 18 },

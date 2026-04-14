@@ -1,6 +1,6 @@
 // components/BackupScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung von BackupModal auf vollwertigen Navigation-Screen
+// Refactoring: Integration des gemeinsamen ScreenHeader Komponenten
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -17,14 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import GoogleDriveService from '../services/GoogleDriveService';
 import AssetRepository from '../repositories/AssetRepository';
+import ScreenHeader from './ScreenHeader'; // Neu importiert
 
 export default function BackupScreen({ navigation, route }) {
   const [isDriveReady, setIsDriveReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
-
-  // Die onRestoreSuccess-Callback Logik aus dem alten Modal wird jetzt
-  // über den Fokus-Listener der App.js (refresh) automatisch abgedeckt.
 
   useEffect(() => {
     initDrive();
@@ -93,7 +91,6 @@ export default function BackupScreen({ navigation, route }) {
               if (backupData) {
                 await AssetRepository.restoreData(backupData);
                 global.notify("Daten erfolgreich wiederhergestellt", "success");
-                // Wir gehen zurück, App.js aktualisiert sich per useFocusEffect
                 setTimeout(() => navigation.goBack(), 1500);
               } else {
                 global.notify("Kein Backup gefunden", "info");
@@ -111,12 +108,10 @@ export default function BackupScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Backup & Restore</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
-          <Ionicons name="close" size={24} color={Theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader 
+        title="Backup & Restore" 
+        onClose={() => navigation.goBack()} 
+      />
 
       <ScrollView style={styles.content}>
         <View style={styles.infoCard}>
@@ -177,18 +172,6 @@ export default function BackupScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    padding: Theme.spacing.l, 
-    paddingTop: Platform.OS === 'ios' ? 60 : 20, 
-    backgroundColor: Theme.colors.surface, 
-    borderBottomWidth: 1, 
-    borderBottomColor: Theme.colors.border 
-  },
-  headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  closeBtn: { padding: 5 },
   content: { flex: 1, padding: Theme.spacing.l },
   infoCard: { 
     backgroundColor: Theme.colors.surface, 

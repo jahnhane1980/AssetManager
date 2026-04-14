@@ -1,6 +1,6 @@
 // components/AddAssetScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Integration von PrimaryButton für konsistentes UI
+// Refactoring: Logik in useAssetForm, ImagePickerHelper und GeminiService ausgelagert
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -12,23 +12,25 @@ import {
   KeyboardAvoidingView, 
   Platform
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import { Security } from './Security';
-import { Config } from '../constants/Config';
 import { AppConstants } from '../constants/AppConstants';
 import AssetRepository from '../repositories/AssetRepository';
 import ImagePreviewModal from './ImagePreviewModal';
 import AssetInputRow from './AssetInputRow';
 import ScreenHeader from './ScreenHeader';
-import PrimaryButton from './PrimaryButton'; // Neu importiert
+import PrimaryButton from './PrimaryButton';
+
+import GeminiService from '../services/GeminiService';
+import ImagePickerHelper from '../utils/ImagePickerHelper';
+import { useAssetForm } from '../hooks/useAssetForm';
 
 export default function AddAssetScreen({ navigation, route }) {
   const { initialProvider } = route.params || {};
-
-  const [rows, setRows] = useState([]);
+  const { rows, addRow, removeRow, updateRow } = useAssetForm();
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
@@ -46,33 +48,12 @@ export default function AddAssetScreen({ navigation, route }) {
     setHasApiKey(!!key);
   }, []);
 
-  const addEmptyRow = useCallback((providerOverride = null) => {
-    const newRow = {
-      id: Date.now() + Math.random(),
-      provider: providerOverride || AppConstants.PROVIDERS[0],
-      value: '',
-      timestamp: Date.now(),
-      status: 'manual', 
-      isConfirmed: false,
-      imageUri: null
-    };
-    setRows(prev => [...prev, newRow]);
-  }, []);
-
-  const removeRow = useCallback((id) => {
-    setRows(prev => (prev.length > 1 ? prev.filter(r => r.id !== id) : prev));
-  }, []);
-
-  const updateRow = useCallback((id, fields) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
-  }, []);
-
   useEffect(() => {
     checkKeyStatus();
     if (rows.length === 0) {
-      addEmptyRow(initialProvider); 
+      addRow(initialProvider); 
     }
-  }, [checkKeyStatus, addEmptyRow, rows.length, initialProvider]);
+  }, [checkKeyStatus, addRow, rows.length, initialProvider]);
 
   const handleNativeDateChange = (event, selectedDate) => {
     setShowNativePicker(false);
@@ -89,30 +70,13 @@ export default function AddAssetScreen({ navigation, route }) {
     }
     
     try {
-      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!granted) {
-        global.notify("Berechtigung verweigert", "error");
-        return;
-      }
-
-      const mediaTypesValue = (ImagePicker.MediaType && ImagePicker.MediaType.Images)
-        ? ImagePicker.MediaType.Images 
-        : ImagePicker.MediaTypeOptions.Images;
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: mediaTypesValue,
-        quality: 0.7,
-        base64: true,
-      });
-
-      if (!result.canceled) {
-        const uri = result.assets[0].uri;
-        updateRow(rowId, { imageUri: uri });
-        processImage(rowId, result.assets[0].base64);
+      const imageData = await ImagePickerHelper.pickImageFromLibrary();
+      if (imageData) {
+        updateRow(rowId, { imageUri: imageData.uri });
+        processImage(rowId, imageData.base64);
       }
     } catch (error) {
-      console.error("Fehler beim Öffnen der Galerie:", error);
-      global.notify("Galerie-Fehler", "error");
+      global.notify(error.message, "error");
     }
   };
 
@@ -122,25 +86,7 @@ export default function AddAssetScreen({ navigation, route }) {
     const provider = currentRow ? currentRow.provider : AppConstants.PROVIDERS[0];
     
     try {
-      const apiKey = await Security.getGeminiKey();
-      const apiUrl = `${Config.GEMINI_API.BASE_URL}/${Config.GEMINI_API.MODEL}:${Config.GEMINI_API.ENDPOINT}?key=${apiKey}`;
-
-      const response = await fetch(apiKey ? apiUrl : '', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: AppConstants.PROMPTS.ASSET_EXTRACTION(provider) },
-              { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-            ]
-          }]
-        })
-      });
-
-      const result = await response.json();
-      const detectedText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      
+      const detectedText = await GeminiService.analyzeImage(base64Data, provider);
       if (detectedText) {
         updateRow(rowId, { value: detectedText, status: 'ai-done' });
         global.notify("KI-Analyse erfolgreich", "success");
@@ -218,7 +164,7 @@ export default function AddAssetScreen({ navigation, route }) {
             />
           ))}
 
-          <TouchableOpacity style={styles.addBtn} onPress={() => addEmptyRow(null)}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => addRow(null)}>
             <Ionicons name="add-circle-outline" size={24} color={Theme.colors.textSecondary} />
             <Text style={styles.addBtnText}>Weiteren Provider hinzufügen</Text>
           </TouchableOpacity>
@@ -286,6 +232,16 @@ export default function AddAssetScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
         </View>
+      )}
+
+      {showNativePicker && (
+        <DateTimePicker
+          value={activeRowId ? new Date(rows.find(r => r.id === activeRowId).timestamp) : new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleNativeDateChange}
+          maximumDate={new Date()}
+        />
       )}
     </View>
   );

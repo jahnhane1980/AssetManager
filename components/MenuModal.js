@@ -1,91 +1,131 @@
 // components/MenuModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Update: Menüeintrag für den Export der Log-Datei hinzugefügt
+// Refactoring: Umstellung von nativem Modal auf JS-View mit Animation
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
   Text, 
   View, 
-  Modal, 
   TouchableOpacity, 
   TouchableWithoutFeedback,
-  Platform 
+  Platform,
+  Animated,
+  BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
-import LogService from '../services/LogService'; // Neu importiert
+import LogService from '../services/LogService';
 
 export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHistory, onOpenDeleteConfirm, onOpenBackup }) {
-  
+  const [shouldRender, setShouldRender] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setShouldRender(false));
+    }
+  }, [visible, fadeAnim]);
+
+  // Back-Handler für Android (Ersatz für onRequestClose)
+  useEffect(() => {
+    if (visible) {
+      const backAction = () => {
+        onClose();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [visible, onClose]);
+
   const handleShareLogs = async () => {
     await LogService.shareLogs();
     onClose();
   };
 
+  if (!shouldRender) return null;
+
   return (
-    <Modal visible={visible} animationType="fade" transparent={true}>
+    <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <View style={styles.menuContainer}>
-            
-            <TouchableOpacity 
-              style={styles.menuItem} 
-              onPress={() => { onOpenHistory(); onClose(); }}
-            >
-              <Ionicons name="analytics-outline" size={20} color={Theme.colors.text} style={styles.icon} />
-              <Text style={styles.menuText}>Verlauf</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity 
-              style={styles.menuItem} 
-              onPress={() => { onOpenBackup(); onClose(); }}
-            >
-              <Ionicons name="cloud-upload-outline" size={20} color={Theme.colors.text} style={styles.icon} />
-              <Text style={styles.menuText}>Backup & Restore</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity 
-              style={styles.menuItem} 
-              onPress={handleShareLogs}
-            >
-              <Ionicons name="document-text-outline" size={20} color={Theme.colors.text} style={styles.icon} />
-              <Text style={styles.menuText}>Logs senden</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity 
-              style={styles.menuItem} 
-              onPress={() => { onOpenSettings(); onClose(); }}
-            >
-              <Ionicons name="settings-outline" size={20} color={Theme.colors.text} style={styles.icon} />
-              <Text style={styles.menuText}>Einstellungen</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity 
-              style={styles.menuItem} 
-              onPress={() => { onOpenDeleteConfirm(); onClose(); }}
-            >
-              <Ionicons name="trash-outline" size={20} color={Theme.colors.error} style={styles.icon} />
-              <Text style={[styles.menuText, { color: Theme.colors.error }]}>Daten löschen</Text>
-            </TouchableOpacity>
-
-          </View>
-        </View>
+        <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
-    </Modal>
+      
+      <View style={styles.menuContainer}>
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={() => { onOpenHistory(); onClose(); }}
+        >
+          <Ionicons name="analytics-outline" size={20} color={Theme.colors.text} style={styles.icon} />
+          <Text style={styles.menuText}>Verlauf</Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={() => { onOpenBackup(); onClose(); }}
+        >
+          <Ionicons name="cloud-upload-outline" size={20} color={Theme.colors.text} style={styles.icon} />
+          <Text style={styles.menuText}>Backup & Restore</Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={handleShareLogs}
+        >
+          <Ionicons name="document-text-outline" size={20} color={Theme.colors.text} style={styles.icon} />
+          <Text style={styles.menuText}>Logs senden</Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={() => { onOpenSettings(); onClose(); }}
+        >
+          <Ionicons name="settings-outline" size={20} color={Theme.colors.text} style={styles.icon} />
+          <Text style={styles.menuText}>Einstellungen</Text>
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={() => { onOpenDeleteConfirm(); onClose(); }}
+        >
+          <Ionicons name="trash-outline" size={20} color={Theme.colors.error} style={styles.icon} />
+          <Text style={[styles.menuText, { color: Theme.colors.error }]}>Daten löschen</Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: Theme.colors.overlayLight },
+  overlay: { 
+    ...StyleSheet.absoluteFillObject, 
+    zIndex: 1000,
+    elevation: 20 // Wichtig für Android Z-Order über den anderen Views
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Theme.colors.overlayLight
+  },
   menuContainer: { 
     position: 'absolute', 
     right: 15, 
@@ -93,7 +133,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface, 
     borderRadius: Theme.borderRadius.m, 
     width: 220, 
-    elevation: 5,
+    elevation: 25, // Höhere Elevation für das Menü selbst
     shadowColor: Theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,

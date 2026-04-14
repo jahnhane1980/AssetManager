@@ -1,17 +1,18 @@
 // components/HistoryModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung auf FlatList und fixiertes Pagination-Layout
+// Refactoring: Umstellung von nativem Modal auf animierte JS-View
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   StyleSheet, 
   Text, 
   View, 
-  Modal, 
   TouchableOpacity, 
   FlatList,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
@@ -24,6 +25,38 @@ export default function HistoryModal({ visible, onClose }) {
   const [pageSize, setPageSize] = useState(15);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+
+  // Animation & Rendering States
+  const [shouldRender, setShouldRender] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => setShouldRender(false));
+    }
+  }, [visible, fadeAnim]);
+
+  useEffect(() => {
+    if (visible) {
+      const backAction = () => {
+        onClose();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [visible, onClose]);
 
   const fetchHistory = useCallback(async (page, size) => {
     setIsLoading(true);
@@ -96,63 +129,66 @@ export default function HistoryModal({ visible, onClose }) {
     </View>
   );
 
+  if (!shouldRender) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Vermögensverlauf</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
-            <Ionicons name="close" size={24} color={Theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.mainContent}>
-          <Text style={styles.sectionTitle}>Aktivitäten (Seite {currentPage})</Text>
-          
-          {isLoading ? (
-            <ActivityIndicator size="large" color={Theme.colors.primary} style={{ marginTop: 20 }} />
-          ) : (
-            <FlatList
-              data={history}
-              renderItem={renderItem}
-              keyExtractor={(item, index) => item.timestamp?.toString() || index.toString()}
-              contentContainerStyle={styles.listContent}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>Keine Einträge vorhanden.</Text>
-                </View>
-              }
-            />
-          )}
-        </View>
-
-        {/* Fixierte Pagination-Controls */}
-        <View style={styles.paginationFooter}>
-          <TouchableOpacity 
-            style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]} 
-            onPress={handlePrevPage}
-            disabled={currentPage === 1 || isLoading}
-          >
-            <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? Theme.colors.border : Theme.colors.white} />
-            <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>Zurück</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.pageBtn, !hasMore && styles.pageBtnDisabled]} 
-            onPress={handleNextPage}
-            disabled={!hasMore || isLoading}
-          >
-            <Text style={[styles.pageBtnText, !hasMore && styles.pageBtnTextDisabled]}>Weiter</Text>
-            <Ionicons name="chevron-forward" size={20} color={!hasMore ? Theme.colors.border : Theme.colors.white} />
-          </TouchableOpacity>
-        </View>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Vermögensverlauf</Text>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
+          <Ionicons name="close" size={24} color={Theme.colors.primary} />
+        </TouchableOpacity>
       </View>
-    </Modal>
+
+      <View style={styles.mainContent}>
+        <Text style={styles.sectionTitle}>Aktivitäten (Seite {currentPage})</Text>
+        
+        {isLoading ? (
+          <ActivityIndicator size="large" color={Theme.colors.primary} style={{ marginTop: 20 }} />
+        ) : (
+          <FlatList
+            data={history}
+            renderItem={renderItem}
+            keyExtractor={(item, index) => item.timestamp?.toString() || index.toString()}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Keine Einträge vorhanden.</Text>
+              </View>
+            }
+          />
+        )}
+      </View>
+
+      <View style={styles.paginationFooter}>
+        <TouchableOpacity 
+          style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]} 
+          onPress={handlePrevPage}
+          disabled={currentPage === 1 || isLoading}
+        >
+          <Ionicons name="chevron-back" size={20} color={currentPage === 1 ? Theme.colors.border : Theme.colors.white} />
+          <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>Zurück</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.pageBtn, !hasMore && styles.pageBtnDisabled]} 
+          onPress={handleNextPage}
+          disabled={!hasMore || isLoading}
+        >
+          <Text style={[styles.pageBtnText, !hasMore && styles.pageBtnTextDisabled]}>Weiter</Text>
+          <Ionicons name="chevron-forward" size={20} color={!hasMore ? Theme.colors.border : Theme.colors.white} />
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Theme.colors.background },
+  container: { 
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Theme.colors.background,
+    zIndex: 100
+  },
   header: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 

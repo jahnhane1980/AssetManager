@@ -1,53 +1,80 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: "Bitte manuell auslesen" Link bei KI-Fehlern & Notification-Z-Order Fix
+// Refactoring: Support für initialen Provider & ImagePicker-Kompatibilitäts-Fix
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   StyleSheet, 
   Text, 
   View, 
-  Modal, 
   TouchableOpacity, 
-  TextInput, 
   ScrollView, 
   KeyboardAvoidingView, 
   Platform, 
   ActivityIndicator,
-  Image
+  Animated,
+  BackHandler
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import { Security } from './Security';
 import { Config } from '../constants/Config';
 import { AppConstants } from '../constants/AppConstants';
-import Notification from './Notification'; // Import für Z-Order Fix
+import ImagePreviewModal from './ImagePreviewModal';
+import AssetInputRow from './AssetInputRow';
 
-export default function AddAssetModal({ visible, onClose, onSave }) {
+export default function AddAssetModal({ visible, onClose, onSave, initialProvider }) {
   const [rows, setRows] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
-  const [previewRow, setPreviewRow] = useState(null);
-  const [tempAmount, setTempAmount] = useState('');
-  const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
+  const [shouldRender, setShouldRender] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const [activeRowId, setActiveRowId] = useState(null);
-  const [showProviderPicker, setShowProviderPicker] = useState(false);
-  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
-  const [showNativePicker, setShowNativePicker] = useState(false);
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => setShouldRender(false));
+    }
+  }, [visible, fadeAnim]);
+
+  const resetAndClose = useCallback(() => {
+    setRows([]);
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (visible) {
+      const backAction = () => {
+        resetAndClose();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [visible, resetAndClose]);
 
   const checkKeyStatus = useCallback(async () => {
     const key = await Security.getGeminiKey();
     setHasApiKey(!!key);
   }, []);
 
-  const addEmptyRow = useCallback(() => {
+  const addEmptyRow = useCallback((providerOverride = null) => {
     const newRow = {
       id: Date.now() + Math.random(),
-      provider: AppConstants.PROVIDERS[0],
+      provider: providerOverride || AppConstants.PROVIDERS[0],
       value: '',
       timestamp: Date.now(),
       status: 'manual', 
@@ -58,22 +85,30 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   }, []);
 
   const removeRow = useCallback((id) => {
-    setRows(prev => {
-      if (prev.length > 1) {
-        return prev.filter(r => r.id !== id);
-      }
-      return prev;
-    });
+    setRows(prev => (prev.length > 1 ? prev.filter(r => r.id !== id) : prev));
   }, []);
 
   const updateRow = useCallback((id, fields) => {
     setRows(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
   }, []);
 
-  const resetAndClose = useCallback(() => {
-    setRows([]);
-    onClose();
-  }, [onClose]);
+  useEffect(() => {
+    if (visible) {
+      checkKeyStatus();
+      if (rows.length === 0) {
+        addEmptyRow(initialProvider); 
+      }
+    }
+  }, [visible, checkKeyStatus, addEmptyRow, rows.length, initialProvider]);
+
+  const [previewRow, setPreviewRow] = useState(null);
+  const [tempAmount, setTempAmount] = useState('');
+  const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
+
+  const [activeRowId, setActiveRowId] = useState(null);
+  const [showProviderPicker, setShowProviderPicker] = useState(false);
+  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
+  const [showNativePicker, setShowNativePicker] = useState(false);
 
   const handleNativeDateChange = (event, selectedDate) => {
     setShowNativePicker(false);
@@ -83,34 +118,38 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     }
   };
 
-  useEffect(() => {
-    if (visible) {
-      checkKeyStatus();
-      if (rows.length === 0) {
-        addEmptyRow();
-      }
-    }
-  }, [visible, checkKeyStatus, addEmptyRow, rows.length]);
-
   const handlePickImage = async (rowId) => {
     if (!hasApiKey) {
-      global.notify("API-Key in Einstellungen fehlt", "error");
+      global.notify("API-Key fehlt", "error");
       return;
     }
+    
+    try {
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) {
+        global.notify("Berechtigung verweigert", "error");
+        return;
+      }
 
-    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!granted) return;
+      // KOMPATIBILITÄTS-FIX: Prüft ob moderne oder alte API vorhanden ist
+      const mediaTypesValue = (ImagePicker.MediaType && ImagePicker.MediaType.Images)
+        ? ImagePicker.MediaType.Images 
+        : ImagePicker.MediaTypeOptions.Images;
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      base64: true,
-    });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: mediaTypesValue,
+        quality: 0.7,
+        base64: true,
+      });
 
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
-      updateRow(rowId, { imageUri: uri });
-      processImage(rowId, result.assets[0].base64);
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        updateRow(rowId, { imageUri: uri });
+        processImage(rowId, result.assets[0].base64);
+      }
+    } catch (error) {
+      console.error("Fehler beim Öffnen der Galerie:", error);
+      global.notify("Galerie-Fehler", "error");
     }
   };
 
@@ -121,8 +160,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     
     try {
       const apiKey = await Security.getGeminiKey();
-      const { BASE_URL, MODEL, ENDPOINT } = Config.GEMINI_API;
-      const apiUrl = `${BASE_URL}/${MODEL}:${ENDPOINT}?key=${apiKey}`;
+      const apiUrl = `${Config.GEMINI_API.BASE_URL}/${Config.GEMINI_API.MODEL}:${Config.GEMINI_API.ENDPOINT}?key=${apiKey}`;
 
       const response = await fetch(apiKey ? apiUrl : '', {
         method: 'POST',
@@ -148,7 +186,6 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
       }
     } catch (error) {
       global.notify("KI Fehler: " + error.message, "error");
-      // Status auf ai-error setzen, damit der manuelle Link erscheint
       updateRow(rowId, { status: 'ai-error' });
     }
   };
@@ -159,9 +196,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
       for (const row of rows) {
         const sanitized = row.value.replace(/\./g, '').replace(',', '.');
         const val = parseFloat(sanitized);
-        if (!isNaN(val)) {
-          await onSave(row.provider, val, row.timestamp);
-        }
+        if (!isNaN(val)) await onSave(row.provider, val, row.timestamp);
       }
       resetAndClose();
     } catch (error) {
@@ -171,10 +206,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     }
   };
 
-  const formatDate = (ts) => {
-    const d = new Date(ts);
-    return d.toLocaleDateString('de-DE');
-  };
+  const formatDate = (ts) => new Date(ts).toLocaleDateString('de-DE');
 
   const openPreview = (row) => {
     setPreviewRow(row);
@@ -190,266 +222,145 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     }
   };
 
+  if (!shouldRender) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === "ios" ? "padding" : "height"} 
-          style={styles.modalContainer}
-        >
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Werte erfassen</Text>
-            <TouchableOpacity onPress={resetAndClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color={Theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
+    <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalContainer}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Werte erfassen</Text>
+          <TouchableOpacity onPress={resetAndClose} style={styles.closeBtn}>
+            <Ionicons name="close" size={24} color={Theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
 
-          <ScrollView style={styles.scrollArea}>
-            {rows.map((row) => (
-              <View key={row.id} style={styles.rowCard}>
-                <View style={styles.rowMain}>
-                  <View style={styles.selectors}>
-                    <TouchableOpacity 
-                      style={styles.selectorBtn} 
-                      onPress={() => { setActiveRowId(row.id); setShowProviderPicker(true); }}
-                    >
-                      <Text style={styles.selectorText} numberOfLines={1}>{row.provider}</Text>
-                      <Ionicons name="chevron-down" size={14} color={Theme.colors.primary} />
-                    </TouchableOpacity>
+        <ScrollView style={styles.scrollArea}>
+          {rows.map((row) => (
+            <AssetInputRow 
+              key={row.id}
+              row={row}
+              formattedDate={formatDate(row.timestamp)}
+              onProviderPress={() => { setActiveRowId(row.id); setShowProviderPicker(true); }}
+              onDatePress={() => { setActiveRowId(row.id); setShowDatePickerModal(true); }}
+              onValueChange={(v) => updateRow(row.id, { value: v, status: 'manual' })}
+              onPickImage={() => handlePickImage(row.id)}
+              onRemove={() => removeRow(row.id)}
+              onPreviewPress={() => openPreview(row)}
+            />
+          ))}
 
-                    <TouchableOpacity 
-                      style={styles.selectorBtn}
-                      onPress={() => { setActiveRowId(row.id); setShowDatePickerModal(true); }}
-                    >
-                      <Text style={styles.selectorText}>{formatDate(row.timestamp)}</Text>
-                      <Ionicons name="calendar-outline" size={14} color={Theme.colors.primary} />
-                    </TouchableOpacity>
-                  </View>
+          <TouchableOpacity style={styles.addBtn} onPress={() => addEmptyRow(null)}>
+            <Ionicons name="add-circle-outline" size={24} color={Theme.colors.textSecondary} />
+            <Text style={styles.addBtnText}>Weiteren Provider hinzufügen</Text>
+          </TouchableOpacity>
+          
+          <View style={{ height: 40 }} />
+        </ScrollView>
 
-                  <View style={styles.inputArea}>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        row.status === 'ai-done' && styles.aiInput,
-                        row.status === 'ai-error' && styles.errorInput,
-                        row.status === 'processing' && styles.loadingInput
-                      ]}
-                      value={row.value}
-                      onChangeText={(v) => updateRow(row.id, { value: v, status: 'manual' })}
-                      placeholder="0,00"
-                      keyboardType="numeric"
-                    />
-                    
-                    <TouchableOpacity 
-                      style={styles.aiBtn} 
-                      onPress={() => handlePickImage(row.id)}
-                      disabled={row.status === 'processing'}
-                    >
-                      {row.status === 'processing' ? (
-                        <ActivityIndicator size="small" color={Theme.colors.primary} />
-                      ) : (
-                        <Ionicons 
-                          name="camera-outline" 
-                          size={24} 
-                          color={row.status === 'ai-done' ? Theme.colors.success : (row.status === 'ai-error' ? Theme.colors.error : Theme.colors.primary)} 
-                        />
-                      )}
-                    </TouchableOpacity>
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={[styles.saveAllBtn, isSubmitting && styles.disabledBtn]} 
+            onPress={handleSaveAll}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveAllBtnText}>Alle Werte speichern</Text>}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
 
-                    <TouchableOpacity onPress={() => removeRow(row.id)} style={styles.deleteRowBtn}>
-                      <Ionicons name="trash-outline" size={20} color={Theme.colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                
-                {/* Dynamischer Link für Erfolg ODER Fehler */}
-                {(row.status === 'ai-done' || row.status === 'ai-error') && (
-                  <TouchableOpacity onPress={() => openPreview(row)} style={styles.aiHintContainer}>
-                    <Text style={[styles.aiHint, row.status === 'ai-error' && { color: Theme.colors.error }]}>
-                      {row.status === 'ai-done' 
-                        ? "KI-Ergebnis – bitte prüfen! (Bild zeigen)" 
-                        : "Bitte manuell auslesen (Bild zeigen)"}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
+      <ImagePreviewModal 
+        visible={!!previewRow}
+        imageUri={previewRow?.imageUri}
+        amount={tempAmount}
+        onAmountChange={setTempAmount}
+        onBlur={handlePreviewBlur}
+        onClose={() => setPreviewRow(null)}
+        showFeedback={showSuccessFeedback}
+      />
+
+      {showProviderPicker && (
+        <View style={styles.subOverlayContainer}>
+          <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowProviderPicker(false)} />
+          <View style={styles.pickerContent}>
+            <Text style={styles.pickerTitle}>Anbieter wählen</Text>
+            {AppConstants.PROVIDERS.map(p => (
+              <TouchableOpacity key={p} style={styles.pickerItem} onPress={() => { updateRow(activeRowId, { provider: p }); setShowProviderPicker(false); }}>
+                <Text style={styles.pickerItemText}>{p}</Text>
+              </TouchableOpacity>
             ))}
+          </View>
+        </View>
+      )}
 
-            <TouchableOpacity style={styles.addBtn} onPress={addEmptyRow}>
-              <Ionicons name="add-circle-outline" size={24} color={Theme.colors.textSecondary} />
-              <Text style={styles.addBtnText}>Weiteren Provider hinzufügen</Text>
-            </TouchableOpacity>
-            
-            <View style={{ height: 40 }} />
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <TouchableOpacity 
-              style={[styles.saveAllBtn, isSubmitting && styles.disabledBtn]} 
-              onPress={handleSaveAll}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.saveAllBtnText}>Alle Werte speichern</Text>
-              )}
+      {showDatePickerModal && (
+        <View style={styles.subOverlayContainer}>
+          <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowDatePickerModal(false)} />
+          <View style={styles.pickerContent}>
+            <Text style={styles.pickerTitle}>Datum wählen</Text>
+            <View style={styles.quickSelectRow}>
+              {[0, 1].map(daysBack => {
+                const d = new Date();
+                d.setDate(d.getDate() - daysBack);
+                const label = daysBack === 0 ? "Heute" : "Gestern";
+                return (
+                  <TouchableOpacity key={daysBack} style={styles.quickBtn} onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePickerModal(false); }}>
+                    <Text style={styles.quickBtnText}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={styles.divider} />
+            <TouchableOpacity style={styles.fullWidthBtn} onPress={() => setShowNativePicker(true)}>
+              <Ionicons name="calendar" size={20} color={Theme.colors.primary} />
+              <Text style={styles.fullWidthBtnText}>Anderes Datum wählen</Text>
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        </View>
+      )}
 
-        {/* --- Sub-Modals --- */}
-        
-        {/* Bild-Vorschau & Korrektur-Modal */}
-        <Modal visible={!!previewRow} animationType="fade" transparent={true}>
-          <View style={styles.previewOverlay}>
-            <View style={styles.previewHeader}>
-              <View style={styles.previewInputContainer}>
-                <TextInput
-                  style={styles.previewInput}
-                  value={tempAmount}
-                  onChangeText={setTempAmount}
-                  onBlur={handlePreviewBlur}
-                  keyboardType="numeric"
-                  autoFocus={false}
-                  placeholder="0,00"
-                />
-                <Text style={styles.previewCurrency}>€</Text>
-                {showSuccessFeedback && (
-                  <View style={styles.successBadge}>
-                    <MaterialCommunityIcons name="check-circle" size={20} color={Theme.colors.success} />
-                  </View>
-                )}
-              </View>
-              
-              <TouchableOpacity onPress={() => setPreviewRow(null)} style={styles.previewCloseBtn}>
-                <Ionicons name="close" size={28} color={Theme.colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.imageContainer}>
-              {previewRow?.imageUri ? (
-                <Image 
-                  source={{ uri: previewRow.imageUri }} 
-                  style={styles.previewImage} 
-                  resizeMode="contain" 
-                />
-              ) : (
-                <Text style={{color: '#fff'}}>Bild nicht verfügbar</Text>
-              )}
-            </View>
-            
-            {/* Notification im Preview-Modal für Sichtbarkeit */}
-            <Notification />
-          </View>
-        </Modal>
-
-        <Modal visible={showProviderPicker} transparent={true} animationType="fade">
-          <TouchableOpacity 
-            style={styles.subOverlay} 
-            activeOpacity={1} 
-            onPress={() => setShowProviderPicker(false)}
-          >
-            <View style={styles.pickerContent}>
-              <Text style={styles.pickerTitle}>Anbieter wählen</Text>
-              {AppConstants.PROVIDERS.map(p => (
-                <TouchableOpacity 
-                  key={p} 
-                  style={styles.pickerItem} 
-                  onPress={() => { updateRow(activeRowId, { provider: p }); setShowProviderPicker(false); }}
-                >
-                  <Text style={styles.pickerItemText}>{p}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </TouchableOpacity>
-        </Modal>
-
-        <Modal visible={showDatePickerModal} transparent={true} animationType="fade">
-          <TouchableOpacity 
-            style={styles.subOverlay} 
-            activeOpacity={1} 
-            onPress={() => setShowDatePickerModal(false)}
-          >
-            <View style={styles.pickerContent}>
-              <Text style={styles.pickerTitle}>Datum wählen</Text>
-              
-              <View style={styles.quickSelectRow}>
-                {[0, 1].map(daysBack => {
-                  const d = new Date();
-                  d.setDate(d.getDate() - daysBack);
-                  const label = daysBack === 0 ? "Heute" : "Gestern";
-                  return (
-                    <TouchableOpacity 
-                      key={daysBack} 
-                      style={styles.quickBtn} 
-                      onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePickerModal(false); }}
-                    >
-                      <Text style={styles.quickBtnText}>{label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <View style={styles.divider} />
-
-              <TouchableOpacity 
-                style={styles.fullWidthBtn} 
-                onPress={() => setShowNativePicker(true)}
-              >
-                <Ionicons name="calendar" size={20} color={Theme.colors.primary} />
-                <Text style={styles.fullWidthBtnText}>Anderes Datum wählen</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-
-        {showNativePicker && (
-          <DateTimePicker
-            value={activeRowId ? new Date(rows.find(r => r.id === activeRowId).timestamp) : new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleNativeDateChange}
-            maximumDate={new Date()}
-          />
-        )}
-        
-        {/* Notification im Haupt-Modal für Sichtbarkeit */}
-        <Notification />
-      </View>
-    </Modal>
+      {showNativePicker && (
+        <DateTimePicker
+          value={activeRowId ? new Date(rows.find(r => r.id === activeRowId).timestamp) : new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleNativeDateChange}
+          maximumDate={new Date()}
+        />
+      )}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: Theme.colors.overlay, justifyContent: 'flex-end' },
+  overlay: { 
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Theme.colors.overlay, 
+    justifyContent: 'flex-end',
+    zIndex: 100,
+    elevation: 10
+  },
   modalContainer: { backgroundColor: Theme.colors.background, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, height: '90%' },
   header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },
   headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
   closeBtn: { padding: 5 },
   scrollArea: { padding: Theme.spacing.m },
-  rowCard: { backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.m, padding: Theme.spacing.m, marginBottom: Theme.spacing.m, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-  rowMain: { gap: 10 },
-  selectors: { flexDirection: 'row', gap: 10 },
-  selectorBtn: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.colors.background, padding: 8, borderRadius: Theme.borderRadius.s, borderWidth: 1, borderColor: Theme.colors.border },
-  selectorText: { fontSize: Theme.fontSize.caption, color: Theme.colors.text, fontWeight: Theme.fontWeight.medium },
-  inputArea: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  input: { flex: 1, backgroundColor: Theme.colors.background, padding: 10, borderRadius: Theme.borderRadius.s, fontSize: Theme.fontSize.header, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text, textAlign: 'right', borderWidth: 1, borderColor: Theme.colors.border },
-  aiInput: { borderColor: Theme.colors.primary, backgroundColor: '#f0f7ff' },
-  errorInput: { borderColor: Theme.colors.error, backgroundColor: '#fff0f0' },
-  loadingInput: { opacity: 0.5 },
-  aiBtn: { padding: 5 },
-  deleteRowBtn: { padding: 5 },
-  aiHintContainer: { alignSelf: 'flex-end', marginTop: 5 },
-  aiHint: { fontSize: 10, color: Theme.colors.primary, fontWeight: Theme.fontWeight.semibold, textDecorationLine: 'underline' },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: Theme.spacing.l, gap: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginTop: 5 },
   addBtnText: { color: Theme.colors.textSecondary, fontWeight: Theme.fontWeight.medium },
   footer: { padding: Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopWidth: 1, borderTopColor: Theme.colors.border },
   saveAllBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
   saveAllBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold },
   disabledBtn: { opacity: 0.6 },
-  subOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  pickerContent: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l },
+  subOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 110
+  },
+  subOverlayBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)'
+  },
+  pickerContent: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l, elevation: 5 },
   pickerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, marginBottom: Theme.spacing.l, textAlign: 'center' },
   quickSelectRow: { flexDirection: 'row', gap: 10, marginBottom: Theme.spacing.m },
   quickBtn: { flex: 1, backgroundColor: Theme.colors.background, padding: 12, borderRadius: Theme.borderRadius.m, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
@@ -458,15 +369,5 @@ const styles = StyleSheet.create({
   fullWidthBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 12, backgroundColor: Theme.colors.background, borderRadius: Theme.borderRadius.m, borderWidth: 1, borderColor: Theme.colors.border },
   fullWidthBtnText: { color: Theme.colors.primary, fontWeight: Theme.fontWeight.semibold },
   pickerItem: { paddingVertical: Theme.spacing.m, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
-  pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' },
-  
-  previewOverlay: { flex: 1, backgroundColor: '#000' },
-  previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Theme.spacing.l, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: Theme.spacing.m, backgroundColor: Theme.colors.surface },
-  previewInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  previewInput: { fontSize: 24, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text, minWidth: 80, textAlign: 'right', borderBottomWidth: 2, borderBottomColor: Theme.colors.primary, paddingHorizontal: 5 },
-  previewCurrency: { fontSize: 24, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text, marginLeft: 5 },
-  previewCloseBtn: { padding: 5 },
-  imageContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  previewImage: { width: '100%', height: '100%' },
-  successBadge: { position: 'absolute', right: -30, top: 5 }
+  pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' }
 });

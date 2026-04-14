@@ -1,18 +1,19 @@
 // components/BackupModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Automatische Redirect-URI für sicheren Google OAuth Flow
+// Refactoring: Umstellung von nativem Modal auf animierte JS-View
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  Modal,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
   Platform,
-  Alert
+  Alert,
+  Animated,
+  BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy'; 
@@ -30,14 +31,42 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [backups, setBackups] = useState([]);
 
+  // Animation & Rendering States
+  const [shouldRender, setShouldRender] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const dbPath = `${FileSystem.documentDirectory}SQLite/${Config.DATABASE.NAME}`;
 
   // Vollautomatische Generierung der Redirect-URI durch Expo
   const redirectUri = AuthSession.makeRedirectUri();
 
-  // Konsolen-Check für Debugging-Zwecke
-  console.log("AKTUELLER CLIENT-ID-CHECK:", Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID);
-  console.log("GENERIERTE REDIRECT-URI:", redirectUri);
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => setShouldRender(false));
+    }
+  }, [visible, fadeAnim]);
+
+  useEffect(() => {
+    if (visible) {
+      const backAction = () => {
+        onClose();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [visible, onClose]);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: Config.GOOGLE_DRIVE.CLIENT_ID_ANDROID,
@@ -122,62 +151,66 @@ export default function BackupModal({ visible, onClose, onRestoreSuccess }) {
 
   const formatDate = (ds) => new Date(ds).toLocaleString('de-DE');
 
+  if (!shouldRender) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Cloud Backup</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={Theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.content}>
-          {!isAuthenticated ? (
-            <View style={styles.loginSection}>
-              <Ionicons name="cloud-offline-outline" size={60} color={Theme.colors.textSecondary} style={styles.centerIcon} />
-              <Text style={styles.description}>
-                Verbinde dein Google Drive, um deine Daten sicher zu speichern.
-              </Text>
-              <TouchableOpacity 
-                style={[styles.primaryBtn, !request && styles.disabledBtn]} 
-                onPress={() => promptAsync()}
-                disabled={!request || isProcessing}
-              >
-                <Ionicons name="logo-google" size={20} color="#fff" style={{ marginRight: 10 }} />
-                <Text style={styles.btnText}>Anmelden</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.backupSection}>
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateBackup} disabled={isProcessing}>
-                {isProcessing ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Backup erstellen</Text>}
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-
-              <Text style={styles.subTitle}>Sicherungen</Text>
-              {backups.map((item) => (
-                <View key={item.id} style={styles.backupCard}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.backupName}>{item.name}</Text>
-                    <Text style={styles.backupDate}>{formatDate(item.createdTime)}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.restoreBtn} onPress={() => handleRestore(item.id, item.name)}>
-                    <Ionicons name="refresh-circle" size={30} color={Theme.colors.primary} />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </ScrollView>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Cloud Backup</Text>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <Ionicons name="close" size={24} color={Theme.colors.primary} />
+        </TouchableOpacity>
       </View>
-    </Modal>
+
+      <ScrollView contentContainerStyle={styles.content}>
+        {!isAuthenticated ? (
+          <View style={styles.loginSection}>
+            <Ionicons name="cloud-offline-outline" size={60} color={Theme.colors.textSecondary} style={styles.centerIcon} />
+            <Text style={styles.description}>
+              Verbinde dein Google Drive, um deine Daten sicher zu speichern.
+            </Text>
+            <TouchableOpacity 
+              style={[styles.primaryBtn, !request && styles.disabledBtn]} 
+              onPress={() => promptAsync()}
+              disabled={!request || isProcessing}
+            >
+              <Ionicons name="logo-google" size={20} color="#fff" style={{ marginRight: 10 }} />
+              <Text style={styles.btnText}>Anmelden</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.backupSection}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleCreateBackup} disabled={isProcessing}>
+              {isProcessing ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Backup erstellen</Text>}
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <Text style={styles.subTitle}>Sicherungen</Text>
+            {backups.map((item) => (
+              <View key={item.id} style={styles.backupCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.backupName}>{item.name}</Text>
+                  <Text style={styles.backupDate}>{formatDate(item.createdTime)}</Text>
+                </View>
+                <TouchableOpacity style={styles.restoreBtn} onPress={() => handleRestore(item.id, item.name)}>
+                  <Ionicons name="refresh-circle" size={30} color={Theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Theme.colors.background },
+  container: { 
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Theme.colors.background,
+    zIndex: 100
+  },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Theme.spacing.l, paddingTop: Platform.OS === 'ios' ? 60 : 20, paddingBottom: Theme.spacing.m, backgroundColor: Theme.colors.surface, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
   headerTitle: { fontSize: Theme.fontSize.header, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
   closeBtn: { padding: 5 },

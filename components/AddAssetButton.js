@@ -1,6 +1,6 @@
 // components/AddAssetButton.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Kapselung des Floating Action Buttons (FAB)
+// Fokus: Kapselung des Floating Action Buttons (FAB) mit Debug-Logs
 
 import React from 'react';
 import { StyleSheet, TouchableOpacity } from 'react-native';
@@ -8,8 +8,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 
 export default function AddAssetButton({ onPress }) {
+  const handlePress = () => {
+    console.log("[DEBUG] AddAssetButton: onPress ausgelöst");
+    if (onPress) onPress();
+  };
+
   return (
-    <TouchableOpacity style={styles.fab} onPress={onPress}>
+    <TouchableOpacity style={styles.fab} onPress={handlePress}>
       <Ionicons name="add" size={32} color={Theme.colors.white} />
     </TouchableOpacity>
   );
@@ -27,7 +32,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center', 
     elevation: 5,
-    // Schatten für iOS
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,

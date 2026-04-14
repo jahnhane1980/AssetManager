@@ -47,26 +47,10 @@ Deine Finanzdaten sind sensibel. Deshalb speichert der AssetManager alle Buchung
 
 ---
 
-## 🛠️ Geplante Erweiterungen & Roadmap
+## 🛠️ Geplante Erweiterungen & Roadmap V3
 
 Um den AssetManager noch leistungsfähiger und benutzerfreundlicher zu machen, sind folgende Erweiterungen für zukünftige Versionen geplant:
 
-
-## Umgesetzte Erweiterungen 
-### ⚡ Technische Optimierungen
-* **Performance-Listen**: Umstellung der Portfolio- und Historien-Anzeige auf `FlatList` für effizienteres Rendering großer Datenmengen.
-* **DB-Indizes**: Optimierung der SQLite-Abfragegeschwindigkeit durch Indizes auf den Spalten `timestamp` und `provider`.
-
-### 🎨 UX & Visualisierung
-* **Interaktive Charts**: "On-Touch"-Tooltips zur Anzeige exakter Beträge im Graphen.
-* **Validierte Eingabe**: Optimierung der manuellen Datumseingabe durch Input-Masking oder native Picker-Integration.
-* **Zentrales UI-Feedback**: Implementierung eines globalen Notification-Systems für konsistente Erfolgs- und Fehlermeldungen.
-
-### 🔐 Neue Funktionen
-* **Backup & Restore**: Export und Import der lokalen Datenbank als verschlüsselte Datei zur externen Datensicherung. 
-
-
-## Möglich für V2
 * **Biometrische Sperre**: Optionale Zugriffssicherung der App mittels FaceID oder Fingerabdruck. 
 * **Detail-Analysen**: Einführung von Einzel-Historien pro Anbieter für tiefere Einblicke.
 * **Dark Mode**: Vollständige Unterstützung für das systemweite dunkle Erscheinungsbild.

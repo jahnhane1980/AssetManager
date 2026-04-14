@@ -1,18 +1,19 @@
 // components/SettingsModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung auf globales Notification-System
+// Refactoring: Umstellung von nativem Modal auf JS-View mit Animation
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  Modal,
   TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Animated,
+  BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
@@ -21,12 +22,37 @@ import { Security } from './Security';
 export default function SettingsModal({ visible, onClose }) {
   const [apiKey, setApiKey] = useState('');
   const [pageSize, setPageSize] = useState('');
+  const [shouldRender, setShouldRender] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       loadSettings();
+      setShouldRender(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setShouldRender(false));
     }
   }, [visible]);
+
+  useEffect(() => {
+    if (visible) {
+      const backAction = () => {
+        onClose();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [visible, onClose]);
 
   const loadSettings = async () => {
     const key = await Security.getGeminiKey();
@@ -62,61 +88,78 @@ export default function SettingsModal({ visible, onClose }) {
     }
   };
 
+  if (!shouldRender) return null;
+
   return (
-    <Modal visible={visible} animationType="fade" transparent={true}>
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalContainer}
-        >
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Einstellungen</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
-              <Ionicons name="close" size={24} color={Theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
+    <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Einstellungen</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
+            <Ionicons name="close" size={24} color={Theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
 
-          <ScrollView style={styles.content}>
-            <Text style={styles.label}>Gemini AI API-Key</Text>
-            <Text style={styles.description}>
-              Wird benötigt, um Screenshots automatisch zu analysieren.
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={apiKey}
-              onChangeText={setApiKey}
-              placeholder="AIza..."
-              secureTextEntry={true}
-              autoCapitalize="none"
-            />
+        <ScrollView style={styles.content}>
+          <Text style={styles.label}>Gemini AI API-Key</Text>
+          <Text style={styles.description}>
+            Wird benötigt, um Screenshots automatisch zu analysieren.
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={apiKey}
+            onChangeText={setApiKey}
+            placeholder="AIza..."
+            secureTextEntry={true}
+            autoCapitalize="none"
+          />
 
-            <Text style={styles.label}>Einträge pro Seite (Verlauf)</Text>
-            <Text style={styles.description}>
-              Legt fest, wie viele Einträge im Vermögensverlauf gleichzeitig angezeigt werden.
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={pageSize}
-              onChangeText={setPageSize}
-              placeholder="15"
-              keyboardType="numeric"
-            />
+          <Text style={styles.label}>Einträge pro Seite (Verlauf)</Text>
+          <Text style={styles.description}>
+            Legt fest, wie viele Einträge im Vermögensverlauf gleichzeitig angezeigt werden.
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={pageSize}
+            onChangeText={setPageSize}
+            placeholder="15"
+            keyboardType="numeric"
+          />
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={styles.saveBtnText}>Speichern</Text>
-            </TouchableOpacity>
-            
-            <View style={{ height: 30 }} />
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+            <Text style={styles.saveBtnText}>Speichern</Text>
+          </TouchableOpacity>
+          
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: Theme.colors.overlayMedium, justifyContent: 'center', alignItems: 'center' },
-  modalContainer: { width: '90%', maxHeight: '80%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, overflow: 'hidden' },
+  overlay: { 
+    ...StyleSheet.absoluteFillObject, 
+    backgroundColor: Theme.colors.overlayMedium, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    zIndex: 100 
+  },
+  modalContainer: { 
+    width: '90%', 
+    maxHeight: '80%', 
+    backgroundColor: Theme.colors.surface, 
+    borderRadius: Theme.borderRadius.l, 
+    overflow: 'hidden',
+    elevation: 10,
+    shadowColor: Theme.colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5
+  },
   header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },
   headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
   closeBtnContainer: { padding: 5 },

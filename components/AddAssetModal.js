@@ -1,6 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung von nativen Modals auf JS-Views mit Animation
+// Refactoring: Debug-Logs für Modal-Rendering
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
@@ -22,7 +22,6 @@ import { Theme } from './Theme';
 import { Security } from './Security';
 import { Config } from '../constants/Config';
 import { AppConstants } from '../constants/AppConstants';
-import Notification from './Notification';
 import ImagePreviewModal from './ImagePreviewModal';
 import AssetInputRow from './AssetInputRow';
 
@@ -31,35 +30,30 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
-  // Animation & Rendering States
   const [shouldRender, setShouldRender] = useState(visible);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // States für Bild-Vorschau
-  const [previewRow, setPreviewRow] = useState(null);
-  const [tempAmount, setTempAmount] = useState('');
-  const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
-
-  // States für Picker
-  const [activeRowId, setActiveRowId] = useState(null);
-  const [showProviderPicker, setShowProviderPicker] = useState(false);
-  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
-  const [showNativePicker, setShowNativePicker] = useState(false);
+  // Debug-Logs
+  console.log(`[DEBUG] AddAssetModal: Render - visible=${visible}, shouldRender=${shouldRender}`);
 
   useEffect(() => {
+    console.log(`[DEBUG] AddAssetModal: visible Effekt ausgelöst - visible=${visible}`);
     if (visible) {
       setShouldRender(true);
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 300,
         useNativeDriver: true,
-      }).start();
+      }).start(() => console.log("[DEBUG] AddAssetModal: Einblend-Animation beendet"));
     } else {
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 250,
         useNativeDriver: true,
-      }).start(() => setShouldRender(false));
+      }).start(() => {
+        console.log("[DEBUG] AddAssetModal: Ausblend-Animation beendet, setShouldRender(false)");
+        setShouldRender(false);
+      });
     }
   }, [visible, fadeAnim]);
 
@@ -120,9 +114,18 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     }
   }, [visible, checkKeyStatus, addEmptyRow, rows.length]);
 
+  const [previewRow, setPreviewRow] = useState(null);
+  const [tempAmount, setTempAmount] = useState('');
+  const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
+
+  const [activeRowId, setActiveRowId] = useState(null);
+  const [showProviderPicker, setShowProviderPicker] = useState(false);
+  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
+  const [showNativePicker, setShowNativePicker] = useState(false);
+
   const handlePickImage = async (rowId) => {
     if (!hasApiKey) {
-      global.notify("API-Key in Einstellungen fehlt", "error");
+      global.notify("API-Key fehlt", "error");
       return;
     }
     const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -266,7 +269,6 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
         showFeedback={showSuccessFeedback}
       />
 
-      {/* --- Picker Overlays (JS-basiert) --- */}
       {showProviderPicker && (
         <View style={styles.subOverlayContainer}>
           <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowProviderPicker(false)} />
@@ -325,7 +327,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: Theme.colors.overlay, 
     justifyContent: 'flex-end',
-    zIndex: 100
+    zIndex: 100,
+    elevation: 10
   },
   modalContainer: { backgroundColor: Theme.colors.background, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, height: '90%' },
   header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },

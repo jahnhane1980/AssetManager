@@ -1,6 +1,6 @@
 // App.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fix: Z-Order für AddAssetButton und Modals korrigiert
+// Fix: Z-Order für AddAssetButton und Modals korrigiert mit Debug-Logs
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
@@ -43,6 +43,9 @@ function MainContent() {
   const [isHistoryVisible, setHistoryVisible] = useState(false);
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [isBackupVisible, setBackupVisible] = useState(false);
+
+  // Debug Log für Modal-Status
+  console.log(`[DEBUG] App: isAddModalVisible = ${isAddModalVisible}`);
 
   useEffect(() => {
     global.notify = (message, type = 'info') => setActiveNotification({ message, type });
@@ -90,6 +93,11 @@ function MainContent() {
     );
   }
 
+  const handleOpenAddModal = () => {
+    console.log("[DEBUG] App: handleOpenAddModal aufgerufen");
+    setAddModalVisible(true);
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <TotalValueHeader 
@@ -107,12 +115,10 @@ function MainContent() {
         />
       </View>
 
-      {/* Button erhält hohen Z-Index um über dem Content zu liegen */}
       <View style={styles.buttonLayer}>
-        <AddAssetButton onPress={() => setAddModalVisible(true)} />
+        <AddAssetButton onPress={handleOpenAddModal} />
       </View>
 
-      {/* Modale werden hier gerendert - sie haben in ihren Files zIndex: 100 */}
       <AddAssetModal 
         visible={isAddModalVisible} 
         onClose={() => setAddModalVisible(false)} 
@@ -143,7 +149,6 @@ function MainContent() {
         onRestoreSuccess={refresh}
       />
 
-      {/* Notification erhält den höchsten Z-Index in seinem File (z.B. 200) */}
       <Notification 
         notification={activeNotification} 
         onHide={() => setActiveNotification(null)} 
@@ -162,6 +167,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    zIndex: 50, // Höher als Content, niedriger als Modals
+    zIndex: 50,
   }
 });

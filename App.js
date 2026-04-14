@@ -89,7 +89,7 @@ function MainContent() {
   };
 
   const handleOpenMenu = () => {
-    console.log("[DEBUG] App: Menü öffnen angefordert");
+    console.log("[DEBUG] App: handleOpenMenu aufgerufen. Aktueller State:", isMenuVisible);
     setMenuVisible(true);
   };
 
@@ -119,7 +119,9 @@ function MainContent() {
             onProviderPress={(p) => handleOpenAddModal(p)}
           />
         </View>
-        <AddAssetButton onPress={() => handleOpenAddModal(null)} />
+        <View style={styles.buttonLayer}>
+          <AddAssetButton onPress={() => handleOpenAddModal(null)} />
+        </View>
       </View>
 
       {/* 2. Overlay Layer: Alle JS-Modale */}
@@ -169,4 +171,10 @@ const styles = StyleSheet.create({
   mainLayer: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { flex: 1 },
+  buttonLayer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    zIndex: 50,
+  }
 });

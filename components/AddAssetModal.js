@@ -1,18 +1,19 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Integration provider-spezifischer Prompts für verbesserte KI-Extraktion
+// Refactoring: Umstellung von nativen Modals auf JS-Views mit Animation
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   StyleSheet, 
   Text, 
   View, 
-  Modal, 
   TouchableOpacity, 
   ScrollView, 
   KeyboardAvoidingView, 
   Platform, 
-  ActivityIndicator 
+  ActivityIndicator,
+  Animated,
+  BackHandler
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -30,6 +31,10 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
+  // Animation & Rendering States
+  const [shouldRender, setShouldRender] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   // States für Bild-Vorschau
   const [previewRow, setPreviewRow] = useState(null);
   const [tempAmount, setTempAmount] = useState('');
@@ -40,6 +45,34 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const [showProviderPicker, setShowProviderPicker] = useState(false);
   const [showDatePickerModal, setShowDatePickerModal] = useState(false);
   const [showNativePicker, setShowNativePicker] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => setShouldRender(false));
+    }
+  }, [visible, fadeAnim]);
+
+  useEffect(() => {
+    if (visible) {
+      const backAction = () => {
+        resetAndClose();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [visible, resetAndClose]);
 
   const checkKeyStatus = useCallback(async () => {
     const key = await Security.getGeminiKey();
@@ -177,118 +210,123 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     }
   };
 
+  if (!shouldRender) return null;
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalContainer}>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Werte erfassen</Text>
-            <TouchableOpacity onPress={resetAndClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color={Theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.scrollArea}>
-            {rows.map((row) => (
-              <AssetInputRow 
-                key={row.id}
-                row={row}
-                formattedDate={formatDate(row.timestamp)}
-                onProviderPress={() => { setActiveRowId(row.id); setShowProviderPicker(true); }}
-                onDatePress={() => { setActiveRowId(row.id); setShowDatePickerModal(true); }}
-                onValueChange={(v) => updateRow(row.id, { value: v, status: 'manual' })}
-                onPickImage={() => handlePickImage(row.id)}
-                onRemove={() => removeRow(row.id)}
-                onPreviewPress={() => openPreview(row)}
-              />
-            ))}
-
-            <TouchableOpacity style={styles.addBtn} onPress={addEmptyRow}>
-              <Ionicons name="add-circle-outline" size={24} color={Theme.colors.textSecondary} />
-              <Text style={styles.addBtnText}>Weiteren Provider hinzufügen</Text>
-            </TouchableOpacity>
-            
-            <View style={{ height: 40 }} />
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <TouchableOpacity 
-              style={[styles.saveAllBtn, isSubmitting && styles.disabledBtn]} 
-              onPress={handleSaveAll}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveAllBtnText}>Alle Werte speichern</Text>}
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-
-        <ImagePreviewModal 
-          visible={!!previewRow}
-          imageUri={previewRow?.imageUri}
-          amount={tempAmount}
-          onAmountChange={setTempAmount}
-          onBlur={handlePreviewBlur}
-          onClose={() => setPreviewRow(null)}
-          showFeedback={showSuccessFeedback}
-        />
-
-        {/* --- Picker Modals --- */}
-        <Modal visible={showProviderPicker} transparent={true} animationType="fade">
-          <TouchableOpacity style={styles.subOverlay} activeOpacity={1} onPress={() => setShowProviderPicker(false)}>
-            <View style={styles.pickerContent}>
-              <Text style={styles.pickerTitle}>Anbieter wählen</Text>
-              {AppConstants.PROVIDERS.map(p => (
-                <TouchableOpacity key={p} style={styles.pickerItem} onPress={() => { updateRow(activeRowId, { provider: p }); setShowProviderPicker(false); }}>
-                  <Text style={styles.pickerItemText}>{p}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+    <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalContainer}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Werte erfassen</Text>
+          <TouchableOpacity onPress={resetAndClose} style={styles.closeBtn}>
+            <Ionicons name="close" size={24} color={Theme.colors.primary} />
           </TouchableOpacity>
-        </Modal>
+        </View>
 
-        <Modal visible={showDatePickerModal} transparent={true} animationType="fade">
-          <TouchableOpacity style={styles.subOverlay} activeOpacity={1} onPress={() => setShowDatePickerModal(false)}>
-            <View style={styles.pickerContent}>
-              <Text style={styles.pickerTitle}>Datum wählen</Text>
-              <View style={styles.quickSelectRow}>
-                {[0, 1].map(daysBack => {
-                  const d = new Date();
-                  d.setDate(d.getDate() - daysBack);
-                  const label = daysBack === 0 ? "Heute" : "Gestern";
-                  return (
-                    <TouchableOpacity key={daysBack} style={styles.quickBtn} onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePickerModal(false); }}>
-                      <Text style={styles.quickBtnText}>{label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <View style={styles.divider} />
-              <TouchableOpacity style={styles.fullWidthBtn} onPress={() => setShowNativePicker(true)}>
-                <Ionicons name="calendar" size={20} color={Theme.colors.primary} />
-                <Text style={styles.fullWidthBtnText}>Anderes Datum wählen</Text>
+        <ScrollView style={styles.scrollArea}>
+          {rows.map((row) => (
+            <AssetInputRow 
+              key={row.id}
+              row={row}
+              formattedDate={formatDate(row.timestamp)}
+              onProviderPress={() => { setActiveRowId(row.id); setShowProviderPicker(true); }}
+              onDatePress={() => { setActiveRowId(row.id); setShowDatePickerModal(true); }}
+              onValueChange={(v) => updateRow(row.id, { value: v, status: 'manual' })}
+              onPickImage={() => handlePickImage(row.id)}
+              onRemove={() => removeRow(row.id)}
+              onPreviewPress={() => openPreview(row)}
+            />
+          ))}
+
+          <TouchableOpacity style={styles.addBtn} onPress={addEmptyRow}>
+            <Ionicons name="add-circle-outline" size={24} color={Theme.colors.textSecondary} />
+            <Text style={styles.addBtnText}>Weiteren Provider hinzufügen</Text>
+          </TouchableOpacity>
+          
+          <View style={{ height: 40 }} />
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={[styles.saveAllBtn, isSubmitting && styles.disabledBtn]} 
+            onPress={handleSaveAll}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveAllBtnText}>Alle Werte speichern</Text>}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+
+      <ImagePreviewModal 
+        visible={!!previewRow}
+        imageUri={previewRow?.imageUri}
+        amount={tempAmount}
+        onAmountChange={setTempAmount}
+        onBlur={handlePreviewBlur}
+        onClose={() => setPreviewRow(null)}
+        showFeedback={showSuccessFeedback}
+      />
+
+      {/* --- Picker Overlays (JS-basiert) --- */}
+      {showProviderPicker && (
+        <View style={styles.subOverlayContainer}>
+          <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowProviderPicker(false)} />
+          <View style={styles.pickerContent}>
+            <Text style={styles.pickerTitle}>Anbieter wählen</Text>
+            {AppConstants.PROVIDERS.map(p => (
+              <TouchableOpacity key={p} style={styles.pickerItem} onPress={() => { updateRow(activeRowId, { provider: p }); setShowProviderPicker(false); }}>
+                <Text style={styles.pickerItemText}>{p}</Text>
               </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
+            ))}
+          </View>
+        </View>
+      )}
 
-        {showNativePicker && (
-          <DateTimePicker
-            value={activeRowId ? new Date(rows.find(r => r.id === activeRowId).timestamp) : new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleNativeDateChange}
-            maximumDate={new Date()}
-          />
-        )}
-        
-        <Notification />
-      </View>
-    </Modal>
+      {showDatePickerModal && (
+        <View style={styles.subOverlayContainer}>
+          <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowDatePickerModal(false)} />
+          <View style={styles.pickerContent}>
+            <Text style={styles.pickerTitle}>Datum wählen</Text>
+            <View style={styles.quickSelectRow}>
+              {[0, 1].map(daysBack => {
+                const d = new Date();
+                d.setDate(d.getDate() - daysBack);
+                const label = daysBack === 0 ? "Heute" : "Gestern";
+                return (
+                  <TouchableOpacity key={daysBack} style={styles.quickBtn} onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePickerModal(false); }}>
+                    <Text style={styles.quickBtnText}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={styles.divider} />
+            <TouchableOpacity style={styles.fullWidthBtn} onPress={() => setShowNativePicker(true)}>
+              <Ionicons name="calendar" size={20} color={Theme.colors.primary} />
+              <Text style={styles.fullWidthBtnText}>Anderes Datum wählen</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {showNativePicker && (
+        <DateTimePicker
+          value={activeRowId ? new Date(rows.find(r => r.id === activeRowId).timestamp) : new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleNativeDateChange}
+          maximumDate={new Date()}
+        />
+      )}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: Theme.colors.overlay, justifyContent: 'flex-end' },
+  overlay: { 
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Theme.colors.overlay, 
+    justifyContent: 'flex-end',
+    zIndex: 100
+  },
   modalContainer: { backgroundColor: Theme.colors.background, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, height: '90%' },
   header: { flexDirection: 'row', justifyContent: 'space-between', padding: Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopLeftRadius: Theme.borderRadius.l, borderTopRightRadius: Theme.borderRadius.l, borderBottomWidth: 1, borderBottomColor: Theme.colors.border, alignItems: 'center' },
   headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
@@ -300,8 +338,17 @@ const styles = StyleSheet.create({
   saveAllBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
   saveAllBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold },
   disabledBtn: { opacity: 0.6 },
-  subOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  pickerContent: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l },
+  subOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 110
+  },
+  subOverlayBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)'
+  },
+  pickerContent: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l, elevation: 5 },
   pickerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, marginBottom: Theme.spacing.l, textAlign: 'center' },
   quickSelectRow: { flexDirection: 'row', gap: 10, marginBottom: Theme.spacing.m },
   quickBtn: { flex: 1, backgroundColor: Theme.colors.background, padding: 12, borderRadius: Theme.borderRadius.m, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },

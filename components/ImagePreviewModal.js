@@ -1,20 +1,21 @@
 // components/ImagePreviewModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
+// Refactoring: Umstellung von nativem Modal auf animierte JS-View
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
   View, 
-  Modal, 
   TouchableOpacity, 
   TextInput, 
   Text, 
   Image, 
-  Platform 
+  Platform,
+  Animated,
+  BackHandler
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Theme } from './Theme';
-import Notification from './Notification';
 
 export default function ImagePreviewModal({ 
   visible, 
@@ -25,55 +26,87 @@ export default function ImagePreviewModal({
   onClose, 
   showFeedback 
 }) {
-  if (!visible) return null;
+  // Animation & Rendering States
+  const [shouldRender, setShouldRender] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setShouldRender(false));
+    }
+  }, [visible, fadeAnim]);
+
+  useEffect(() => {
+    if (visible) {
+      const backAction = () => {
+        onClose();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [visible, onClose]);
+
+  if (!shouldRender) return null;
 
   return (
-    <Modal visible={visible} animationType="fade" transparent={true}>
-      <View style={styles.previewOverlay}>
-        <View style={styles.previewHeader}>
-          <View style={styles.previewInputContainer}>
-            <TextInput
-              style={styles.previewInput}
-              value={amount}
-              onChangeText={onAmountChange}
-              onBlur={onBlur}
-              keyboardType="numeric"
-              autoFocus={false}
-              placeholder="0,00"
-            />
-            <Text style={styles.previewCurrency}>€</Text>
-            {showFeedback && (
-              <View style={styles.successBadge}>
-                <MaterialCommunityIcons name="check-circle" size={20} color={Theme.colors.success} />
-              </View>
-            )}
-          </View>
-          
-          <TouchableOpacity onPress={onClose} style={styles.previewCloseBtn}>
-            <Ionicons name="close" size={28} color={Theme.colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.imageContainer}>
-          {imageUri ? (
-            <Image 
-              source={{ uri: imageUri }} 
-              style={styles.previewImage} 
-              resizeMode="contain" 
-            />
-          ) : (
-            <Text style={{color: '#fff'}}>Bild nicht verfügbar</Text>
+    <Animated.View style={[styles.previewOverlay, { opacity: fadeAnim }]}>
+      <View style={styles.previewHeader}>
+        <View style={styles.previewInputContainer}>
+          <TextInput
+            style={styles.previewInput}
+            value={amount}
+            onChangeText={onAmountChange}
+            onBlur={onBlur}
+            keyboardType="numeric"
+            autoFocus={false}
+            placeholder="0,00"
+          />
+          <Text style={styles.previewCurrency}>€</Text>
+          {showFeedback && (
+            <View style={styles.successBadge}>
+              <MaterialCommunityIcons name="check-circle" size={20} color={Theme.colors.success} />
+            </View>
           )}
         </View>
         
-        <Notification />
+        <TouchableOpacity onPress={onClose} style={styles.previewCloseBtn}>
+          <Ionicons name="close" size={28} color={Theme.colors.text} />
+        </TouchableOpacity>
       </View>
-    </Modal>
+
+      <View style={styles.imageContainer}>
+        {imageUri ? (
+          <Image 
+            source={{ uri: imageUri }} 
+            style={styles.previewImage} 
+            resizeMode="contain" 
+          />
+        ) : (
+          <Text style={{color: '#fff'}}>Bild nicht verfügbar</Text>
+        )}
+      </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  previewOverlay: { flex: 1, backgroundColor: '#000' },
+  previewOverlay: { 
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 100
+  },
   previewHeader: { 
     flexDirection: 'row', 
     alignItems: 'center', 

@@ -1,66 +1,99 @@
 // components/DeleteConfirmationModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fokus: Sicherheitsabfrage vor dem Löschen der Datenbank
+// Refactoring: Umstellung von nativem Modal auf animierte JS-View
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
   Text, 
   View, 
-  Modal, 
   TouchableOpacity, 
-  Platform 
+  Platform,
+  Animated,
+  BackHandler
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 
 export default function DeleteConfirmationModal({ visible, onClose, onConfirm }) {
+  // Animation & Rendering States
+  const [shouldRender, setShouldRender] = useState(visible);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setShouldRender(false));
+    }
+  }, [visible, fadeAnim]);
+
+  useEffect(() => {
+    if (visible) {
+      const backAction = () => {
+        onClose();
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, [visible, onClose]);
+
+  if (!shouldRender) return null;
+
   return (
-    <Modal visible={visible} animationType="fade" transparent={true}>
-      <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
-          {/* Header mit standardisiertem X */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Daten löschen</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
-              <Ionicons name="close" size={24} color={Theme.colors.primary} />
-            </TouchableOpacity>
-          </View>
+    <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+      <View style={styles.modalContainer}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Daten löschen</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtnContainer}>
+            <Ionicons name="close" size={24} color={Theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
 
-          <View style={styles.content}>
-            <Ionicons 
-              name="warning-outline" 
-              size={48} 
-              color={Theme.colors.error} 
-              style={styles.warningIcon} 
-            />
-            <Text style={styles.message}>
-              Möchtest du wirklich alle Portfolios und den gesamten Verlauf unwiderruflich löschen?
-            </Text>
-            <Text style={styles.subMessage}>
-              Dein API-Key bleibt in den Einstellungen erhalten.
-            </Text>
+        <View style={styles.content}>
+          <Ionicons 
+            name="warning-outline" 
+            size={48} 
+            color={Theme.colors.error} 
+            style={styles.warningIcon} 
+          />
+          <Text style={styles.message}>
+            Möchtest du wirklich alle Portfolios und den gesamten Verlauf unwiderruflich löschen?
+          </Text>
+          <Text style={styles.subMessage}>
+            Dein API-Key bleibt in den Einstellungen erhalten.
+          </Text>
 
-            <TouchableOpacity style={styles.deleteBtn} onPress={onConfirm}>
-              <Text style={styles.deleteBtnText}>Ja, alles löschen</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.deleteBtn} onPress={onConfirm}>
+            <Text style={styles.deleteBtnText}>Ja, alles löschen</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={styles.cancelBtnText}>Abbrechen</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <Text style={styles.cancelBtnText}>Abbrechen</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: { 
-    flex: 1, 
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: Theme.colors.overlayMedium, 
     justifyContent: 'center', 
-    alignItems: 'center' 
+    alignItems: 'center',
+    zIndex: 100
   },
   modalContainer: { 
     width: '85%', 
@@ -121,11 +154,10 @@ const styles = StyleSheet.create({
   cancelBtn: { 
     width: '100%', 
     padding: Theme.spacing.m, 
-    alignItems: 'center' 
+    alignItems: 'center'
   },
   cancelBtnText: { 
     color: Theme.colors.textSecondary, 
-    fontSize: Theme.fontSize.body, 
-    fontWeight: Theme.fontWeight.medium 
-  },
+    fontSize: Theme.fontSize.body 
+  }
 });

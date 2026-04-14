@@ -1,6 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Support für initialen Provider & ImagePicker Fix
+// Refactoring: Support für initialen Provider & ImagePicker-Kompatibilitäts-Fix
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
@@ -131,9 +131,13 @@ export default function AddAssetModal({ visible, onClose, onSave, initialProvide
         return;
       }
 
-      // Modernes ImagePicker API
+      // KOMPATIBILITÄTS-FIX: Prüft ob moderne oder alte API vorhanden ist
+      const mediaTypesValue = (ImagePicker.MediaType && ImagePicker.MediaType.Images)
+        ? ImagePicker.MediaType.Images 
+        : ImagePicker.MediaTypeOptions.Images;
+
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: mediaTypesValue,
         quality: 0.7,
         base64: true,
       });

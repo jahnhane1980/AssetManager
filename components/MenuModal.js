@@ -1,6 +1,6 @@
 // components/MenuModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung auf JS-View mit Animation und Android-Z-Order Fix
+// Refactoring: Umstellung von nativem Modal auf JS-View mit Animation
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -22,7 +22,6 @@ export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHist
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    console.log(`[DEBUG] MenuModal: visible Prop geändert zu ${visible}`);
     if (visible) {
       setShouldRender(true);
       Animated.timing(fadeAnim, {
@@ -35,13 +34,11 @@ export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHist
         toValue: 0,
         duration: 200,
         useNativeDriver: true,
-      }).start(() => {
-        setShouldRender(false);
-      });
+      }).start(() => setShouldRender(false));
     }
   }, [visible, fadeAnim]);
 
-  // Back-Handler für Android
+  // Back-Handler für Android (Ersatz für onRequestClose)
   useEffect(() => {
     if (visible) {
       const backAction = () => {
@@ -122,8 +119,8 @@ export default function MenuModal({ visible, onClose, onOpenSettings, onOpenHist
 const styles = StyleSheet.create({
   overlay: { 
     ...StyleSheet.absoluteFillObject, 
-    zIndex: 1000, // Deutlich erhöht
-    elevation: 20 // Wichtig für Android, um über FAB zu liegen
+    zIndex: 1000,
+    elevation: 20 // Wichtig für Android Z-Order über den anderen Views
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -136,7 +133,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.surface, 
     borderRadius: Theme.borderRadius.m, 
     width: 220, 
-    elevation: 25, // Über dem Overlay-Hintergrund
+    elevation: 25, // Höhere Elevation für das Menü selbst
     shadowColor: Theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,

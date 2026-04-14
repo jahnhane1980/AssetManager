@@ -1,7 +1,6 @@
 // App.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fix: Z-Order und Layout-Struktur bereinigt, Support für vorausgewählte Provider
-// Refactoring: NavigationContainer und Native Stack Navigator als Grundgerüst hinzugefügt, MainContent zu HomeScreen extrahiert
+// Refactoring: Einbau von SettingsScreen und HistoryScreen in den Navigation Stack
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
@@ -16,13 +15,15 @@ import TotalValueHeader from './components/TotalValueHeader';
 import PortfolioList from './components/PortfolioList';
 import AddAssetButton from './components/AddAssetButton';
 import AddAssetModal from './components/AddAssetModal';
-import SettingsModal from './components/SettingsModal';
 import MenuModal from './components/MenuModal';
-import HistoryModal from './components/HistoryModal';
 import DeleteConfirmationModal from './components/DeleteConfirmationModal';
 import BackupModal from './components/BackupModal';
 import Notification from './components/Notification';
 import LogService from './services/LogService';
+
+// Neue Screens importieren
+import SettingsScreen from './components/SettingsScreen';
+import HistoryScreen from './components/HistoryScreen';
 
 import { usePortfolioData } from './hooks/usePortfolioData';
 
@@ -46,8 +47,8 @@ function HomeScreen({ navigation }) {
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [selectedInitialProvider, setSelectedInitialProvider] = useState(null);
   const [isMenuVisible, setMenuVisible] = useState(false);
-  const [isSettingsVisible, setSettingsVisible] = useState(false);
-  const [isHistoryVisible, setHistoryVisible] = useState(false);
+  
+  // Settings & History State entfernt, da diese nun über die Navigation laufen
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [isBackupVisible, setBackupVisible] = useState(false);
 
@@ -95,7 +96,6 @@ function HomeScreen({ navigation }) {
   };
 
   const handleOpenMenu = () => {
-    console.log("[DEBUG] App: handleOpenMenu aufgerufen. Aktueller State:", isMenuVisible);
     setMenuVisible(true);
   };
 
@@ -109,7 +109,6 @@ function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* 1. Content Layer: Enthält alles Sichtbare mit Insets */}
       <View style={[styles.mainLayer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <TotalValueHeader 
           totalValue={totalValue} 
@@ -130,7 +129,6 @@ function HomeScreen({ navigation }) {
         </View>
       </View>
 
-      {/* 2. Overlay Layer: Alle JS-Modale */}
       <AddAssetModal 
         visible={isAddModalVisible} 
         initialProvider={selectedInitialProvider}
@@ -141,14 +139,12 @@ function HomeScreen({ navigation }) {
       <MenuModal 
         visible={isMenuVisible} 
         onClose={() => setMenuVisible(false)} 
-        onOpenSettings={() => setSettingsVisible(true)}
-        onOpenHistory={() => setHistoryVisible(true)}
+        // Hier leiten wir den Menüklick direkt auf den Navigation-Stack um
+        onOpenSettings={() => navigation.navigate('Settings')}
+        onOpenHistory={() => navigation.navigate('History')}
         onOpenDeleteConfirm={() => setDeleteModalVisible(true)}
         onOpenBackup={() => setBackupVisible(true)}
       />
-      
-      <SettingsModal visible={isSettingsVisible} onClose={() => setSettingsVisible(false)} />
-      <HistoryModal visible={isHistoryVisible} onClose={() => setHistoryVisible(false)} />
       
       <DeleteConfirmationModal 
         visible={isDeleteModalVisible} 
@@ -176,6 +172,9 @@ export default function App() {
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Home" component={HomeScreen} />
+          {/* Unsere beiden neuen Screens wurden hier registriert */}
+          <Stack.Screen name="Settings" component={SettingsScreen} />
+          <Stack.Screen name="History" component={HistoryScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

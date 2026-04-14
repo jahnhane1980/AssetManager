@@ -1,6 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Support für initialen Provider & ImagePicker-Kompatibilitäts-Fix
+// Refactoring: Support für initialen Provider & automatisches Auslesen des Bild-Datums (EXIF)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
@@ -118,6 +118,20 @@ export default function AddAssetModal({ visible, onClose, onSave, initialProvide
     }
   };
 
+  // Hilfsfunktion zum Parsen des EXIF-Datums (Format: YYYY:MM:DD HH:MM:SS)
+  const parseExifDate = (exifDateString) => {
+    if (!exifDateString) return null;
+    try {
+      const [datePart, timePart] = exifDateString.split(' ');
+      const [year, month, day] = datePart.split(':');
+      const [hour, minute, second] = timePart.split(':');
+      return new Date(year, month - 1, day, hour, minute, second).getTime();
+    } catch (e) {
+      console.warn("EXIF Datum konnte nicht geparst werden", e);
+      return null;
+    }
+  };
+
   const handlePickImage = async (rowId) => {
     if (!hasApiKey) {
       global.notify("API-Key fehlt", "error");
@@ -140,12 +154,25 @@ export default function AddAssetModal({ visible, onClose, onSave, initialProvide
         mediaTypes: mediaTypesValue,
         quality: 0.7,
         base64: true,
+        exif: true, // EXIF-Daten explizit anfordern
       });
 
       if (!result.canceled) {
-        const uri = result.assets[0].uri;
-        updateRow(rowId, { imageUri: uri });
-        processImage(rowId, result.assets[0].base64);
+        const asset = result.assets[0];
+        const uri = asset.uri;
+        
+        // Datum aus EXIF extrahieren falls vorhanden
+        const exifDate = asset.exif?.DateTimeOriginal || asset.exif?.DateTime;
+        const extractedTimestamp = parseExifDate(exifDate);
+
+        const updates = { imageUri: uri };
+        if (extractedTimestamp) {
+          updates.timestamp = extractedTimestamp;
+          global.notify("Datum aus Bild übernommen", "info");
+        }
+
+        updateRow(rowId, updates);
+        processImage(rowId, asset.base64);
       }
     } catch (error) {
       console.error("Fehler beim Öffnen der Galerie:", error);

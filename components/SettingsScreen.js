@@ -1,13 +1,12 @@
 // components/SettingsScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Auslagerung des Headers in ScreenHeader.js
+// Refactoring: Integration von PrimaryButton für konsistentes UI
 
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
   Platform,
@@ -15,11 +14,13 @@ import {
 } from 'react-native';
 import { Theme } from './Theme';
 import { Security } from './Security';
-import ScreenHeader from './ScreenHeader'; // Neu importiert
+import ScreenHeader from './ScreenHeader';
+import PrimaryButton from './PrimaryButton'; // Neu importiert
 
 export default function SettingsScreen({ navigation }) {
   const [apiKey, setApiKey] = useState('');
   const [pageSize, setPageSize] = useState('');
+  const [isSaving, setIsSaving] = useState(false); // Neuer Lade-State
 
   useEffect(() => {
     loadSettings();
@@ -44,6 +45,7 @@ export default function SettingsScreen({ navigation }) {
       return;
     }
 
+    setIsSaving(true);
     try {
       const successKey = apiKey.trim() ? await Security.setGeminiKey(apiKey.trim()) : true;
       const successSize = await Security.setPageSize(parsedSize);
@@ -56,6 +58,8 @@ export default function SettingsScreen({ navigation }) {
       }
     } catch (error) {
       global.notify("Systemfehler beim Speichern", "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -96,9 +100,11 @@ export default function SettingsScreen({ navigation }) {
             keyboardType="numeric"
           />
 
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Speichern</Text>
-          </TouchableOpacity>
+          <PrimaryButton 
+            title="Einstellungen speichern"
+            onPress={handleSave}
+            loading={isSaving}
+          />
           
           <View style={{ height: 30 }} />
         </ScrollView>
@@ -118,7 +124,5 @@ const styles = StyleSheet.create({
   content: { padding: Theme.spacing.l, flex: 1 },
   label: { fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.semibold, color: Theme.colors.text, marginBottom: 5 },
   description: { fontSize: Theme.fontSize.description, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m, lineHeight: 18 },
-  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: Theme.fontSize.body, marginBottom: Theme.spacing.l, color: Theme.colors.text },
-  saveBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center', marginBottom: Theme.spacing.m },
-  saveBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold }
+  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: Theme.fontSize.body, marginBottom: Theme.spacing.l, color: Theme.colors.text }
 });

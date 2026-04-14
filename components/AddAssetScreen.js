@@ -1,6 +1,6 @@
 // components/AddAssetScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Integration des gemeinsamen ScreenHeader Komponenten
+// Refactoring: Integration von PrimaryButton für konsistentes UI
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -10,8 +10,7 @@ import {
   TouchableOpacity, 
   ScrollView, 
   KeyboardAvoidingView, 
-  Platform, 
-  ActivityIndicator
+  Platform
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -23,7 +22,8 @@ import { AppConstants } from '../constants/AppConstants';
 import AssetRepository from '../repositories/AssetRepository';
 import ImagePreviewModal from './ImagePreviewModal';
 import AssetInputRow from './AssetInputRow';
-import ScreenHeader from './ScreenHeader'; // Neu importiert
+import ScreenHeader from './ScreenHeader';
+import PrimaryButton from './PrimaryButton'; // Neu importiert
 
 export default function AddAssetScreen({ navigation, route }) {
   const { initialProvider } = route.params || {};
@@ -32,12 +32,10 @@ export default function AddAssetScreen({ navigation, route }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
-  // UI States für Preview
   const [previewRow, setPreviewRow] = useState(null);
   const [tempAmount, setTempAmount] = useState('');
   const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
 
-  // UI States für Picker
   const [activeRowId, setActiveRowId] = useState(null);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
   const [showDatePickerModal, setShowDatePickerModal] = useState(false);
@@ -229,13 +227,11 @@ export default function AddAssetScreen({ navigation, route }) {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity 
-            style={[styles.saveAllBtn, isSubmitting && styles.disabledBtn]} 
+          <PrimaryButton 
+            title="Alle Werte speichern"
             onPress={handleSaveAll}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveAllBtnText}>Alle Werte speichern</Text>}
-          </TouchableOpacity>
+            loading={isSubmitting}
+          />
         </View>
 
       </KeyboardAvoidingView>
@@ -291,16 +287,6 @@ export default function AddAssetScreen({ navigation, route }) {
           </View>
         </View>
       )}
-
-      {showNativePicker && (
-        <DateTimePicker
-          value={activeRowId ? new Date(rows.find(r => r.id === activeRowId).timestamp) : new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleNativeDateChange}
-          maximumDate={new Date()}
-        />
-      )}
     </View>
   );
 }
@@ -312,9 +298,6 @@ const styles = StyleSheet.create({
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: Theme.spacing.l, gap: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginTop: 5 },
   addBtnText: { color: Theme.colors.textSecondary, fontWeight: Theme.fontWeight.medium },
   footer: { padding: Theme.spacing.l, paddingBottom: Platform.OS === 'ios' ? 40 : Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopWidth: 1, borderTopColor: Theme.colors.border },
-  saveAllBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center' },
-  saveAllBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold },
-  disabledBtn: { opacity: 0.6 },
   subOverlayContainer: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 110 },
   subOverlayBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   pickerContent: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l, elevation: 5 },

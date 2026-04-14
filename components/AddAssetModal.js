@@ -1,6 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung auf globales Notification-System
+// Refactoring: "Bitte manuell auslesen" Link bei KI-Fehlern & Notification-Z-Order Fix
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -13,20 +13,26 @@ import {
   ScrollView, 
   KeyboardAvoidingView, 
   Platform, 
-  ActivityIndicator 
+  ActivityIndicator,
+  Image
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import { Security } from './Security';
 import { Config } from '../constants/Config';
 import { AppConstants } from '../constants/AppConstants';
+import Notification from './Notification'; // Import für Z-Order Fix
 
 export default function AddAssetModal({ visible, onClose, onSave }) {
   const [rows, setRows] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
+
+  const [previewRow, setPreviewRow] = useState(null);
+  const [tempAmount, setTempAmount] = useState('');
+  const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
 
   const [activeRowId, setActiveRowId] = useState(null);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
@@ -45,7 +51,8 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
       value: '',
       timestamp: Date.now(),
       status: 'manual', 
-      isConfirmed: false
+      isConfirmed: false,
+      imageUri: null
     };
     setRows(prev => [...prev, newRow]);
   }, []);
@@ -101,6 +108,8 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     });
 
     if (!result.canceled) {
+      const uri = result.assets[0].uri;
+      updateRow(rowId, { imageUri: uri });
       processImage(rowId, result.assets[0].base64);
     }
   };
@@ -139,7 +148,8 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
       }
     } catch (error) {
       global.notify("KI Fehler: " + error.message, "error");
-      updateRow(rowId, { status: 'manual' });
+      // Status auf ai-error setzen, damit der manuelle Link erscheint
+      updateRow(rowId, { status: 'ai-error' });
     }
   };
 
@@ -164,6 +174,20 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const formatDate = (ts) => {
     const d = new Date(ts);
     return d.toLocaleDateString('de-DE');
+  };
+
+  const openPreview = (row) => {
+    setPreviewRow(row);
+    setTempAmount(row.value);
+    setShowSuccessFeedback(false);
+  };
+
+  const handlePreviewBlur = () => {
+    if (previewRow && tempAmount !== previewRow.value) {
+      updateRow(previewRow.id, { value: tempAmount, status: 'manual' });
+      setShowSuccessFeedback(true);
+      setTimeout(() => setShowSuccessFeedback(false), 1500);
+    }
   };
 
   return (
@@ -207,6 +231,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
                       style={[
                         styles.input,
                         row.status === 'ai-done' && styles.aiInput,
+                        row.status === 'ai-error' && styles.errorInput,
                         row.status === 'processing' && styles.loadingInput
                       ]}
                       value={row.value}
@@ -226,7 +251,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
                         <Ionicons 
                           name="camera-outline" 
                           size={24} 
-                          color={row.status === 'ai-done' ? Theme.colors.success : Theme.colors.primary} 
+                          color={row.status === 'ai-done' ? Theme.colors.success : (row.status === 'ai-error' ? Theme.colors.error : Theme.colors.primary)} 
                         />
                       )}
                     </TouchableOpacity>
@@ -236,8 +261,16 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
                     </TouchableOpacity>
                   </View>
                 </View>
-                {row.status === 'ai-done' && (
-                  <Text style={styles.aiHint}>KI-Ergebnis – bitte prüfen!</Text>
+                
+                {/* Dynamischer Link für Erfolg ODER Fehler */}
+                {(row.status === 'ai-done' || row.status === 'ai-error') && (
+                  <TouchableOpacity onPress={() => openPreview(row)} style={styles.aiHintContainer}>
+                    <Text style={[styles.aiHint, row.status === 'ai-error' && { color: Theme.colors.error }]}>
+                      {row.status === 'ai-done' 
+                        ? "KI-Ergebnis – bitte prüfen! (Bild zeigen)" 
+                        : "Bitte manuell auslesen (Bild zeigen)"}
+                    </Text>
+                  </TouchableOpacity>
                 )}
               </View>
             ))}
@@ -267,6 +300,50 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
 
         {/* --- Sub-Modals --- */}
         
+        {/* Bild-Vorschau & Korrektur-Modal */}
+        <Modal visible={!!previewRow} animationType="fade" transparent={true}>
+          <View style={styles.previewOverlay}>
+            <View style={styles.previewHeader}>
+              <View style={styles.previewInputContainer}>
+                <TextInput
+                  style={styles.previewInput}
+                  value={tempAmount}
+                  onChangeText={setTempAmount}
+                  onBlur={handlePreviewBlur}
+                  keyboardType="numeric"
+                  autoFocus={false}
+                  placeholder="0,00"
+                />
+                <Text style={styles.previewCurrency}>€</Text>
+                {showSuccessFeedback && (
+                  <View style={styles.successBadge}>
+                    <MaterialCommunityIcons name="check-circle" size={20} color={Theme.colors.success} />
+                  </View>
+                )}
+              </View>
+              
+              <TouchableOpacity onPress={() => setPreviewRow(null)} style={styles.previewCloseBtn}>
+                <Ionicons name="close" size={28} color={Theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.imageContainer}>
+              {previewRow?.imageUri ? (
+                <Image 
+                  source={{ uri: previewRow.imageUri }} 
+                  style={styles.previewImage} 
+                  resizeMode="contain" 
+                />
+              ) : (
+                <Text style={{color: '#fff'}}>Bild nicht verfügbar</Text>
+              )}
+            </View>
+            
+            {/* Notification im Preview-Modal für Sichtbarkeit */}
+            <Notification />
+          </View>
+        </Modal>
+
         <Modal visible={showProviderPicker} transparent={true} animationType="fade">
           <TouchableOpacity 
             style={styles.subOverlay} 
@@ -336,6 +413,9 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
             maximumDate={new Date()}
           />
         )}
+        
+        {/* Notification im Haupt-Modal für Sichtbarkeit */}
+        <Notification />
       </View>
     </Modal>
   );
@@ -356,10 +436,12 @@ const styles = StyleSheet.create({
   inputArea: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, backgroundColor: Theme.colors.background, padding: 10, borderRadius: Theme.borderRadius.s, fontSize: Theme.fontSize.header, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text, textAlign: 'right', borderWidth: 1, borderColor: Theme.colors.border },
   aiInput: { borderColor: Theme.colors.primary, backgroundColor: '#f0f7ff' },
+  errorInput: { borderColor: Theme.colors.error, backgroundColor: '#fff0f0' },
   loadingInput: { opacity: 0.5 },
   aiBtn: { padding: 5 },
   deleteRowBtn: { padding: 5 },
-  aiHint: { fontSize: 10, color: Theme.colors.primary, marginTop: 5, fontWeight: Theme.fontWeight.semibold, textAlign: 'right' },
+  aiHintContainer: { alignSelf: 'flex-end', marginTop: 5 },
+  aiHint: { fontSize: 10, color: Theme.colors.primary, fontWeight: Theme.fontWeight.semibold, textDecorationLine: 'underline' },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: Theme.spacing.l, gap: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginTop: 5 },
   addBtnText: { color: Theme.colors.textSecondary, fontWeight: Theme.fontWeight.medium },
   footer: { padding: Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopWidth: 1, borderTopColor: Theme.colors.border },
@@ -376,5 +458,15 @@ const styles = StyleSheet.create({
   fullWidthBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 12, backgroundColor: Theme.colors.background, borderRadius: Theme.borderRadius.m, borderWidth: 1, borderColor: Theme.colors.border },
   fullWidthBtnText: { color: Theme.colors.primary, fontWeight: Theme.fontWeight.semibold },
   pickerItem: { paddingVertical: Theme.spacing.m, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
-  pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' }
+  pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' },
+  
+  previewOverlay: { flex: 1, backgroundColor: '#000' },
+  previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Theme.spacing.l, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: Theme.spacing.m, backgroundColor: Theme.colors.surface },
+  previewInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  previewInput: { fontSize: 24, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text, minWidth: 80, textAlign: 'right', borderBottomWidth: 2, borderBottomColor: Theme.colors.primary, paddingHorizontal: 5 },
+  previewCurrency: { fontSize: 24, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text, marginLeft: 5 },
+  previewCloseBtn: { padding: 5 },
+  imageContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  previewImage: { width: '100%', height: '100%' },
+  successBadge: { position: 'absolute', right: -30, top: 5 }
 });

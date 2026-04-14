@@ -1,6 +1,6 @@
 // App.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Fix: Z-Order für AddAssetButton und Modals korrigiert mit Debug-Logs
+// Fix: Z-Order und Layout-Struktur bereinigt, Support für vorausgewählte Provider
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
@@ -38,14 +38,12 @@ function MainContent() {
   } = usePortfolioData(isReady, currentTimeLimit);
   
   const [isAddModalVisible, setAddModalVisible] = useState(false);
+  const [selectedInitialProvider, setSelectedInitialProvider] = useState(null);
   const [isMenuVisible, setMenuVisible] = useState(false);
   const [isSettingsVisible, setSettingsVisible] = useState(false);
   const [isHistoryVisible, setHistoryVisible] = useState(false);
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [isBackupVisible, setBackupVisible] = useState(false);
-
-  // Debug Log für Modal-Status
-  console.log(`[DEBUG] App: isAddModalVisible = ${isAddModalVisible}`);
 
   useEffect(() => {
     global.notify = (message, type = 'info') => setActiveNotification({ message, type });
@@ -85,6 +83,16 @@ function MainContent() {
     }
   };
 
+  const handleOpenAddModal = (provider = null) => {
+    setSelectedInitialProvider(provider);
+    setAddModalVisible(true);
+  };
+
+  const handleOpenMenu = () => {
+    console.log("[DEBUG] App: Menü öffnen angefordert");
+    setMenuVisible(true);
+  };
+
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
@@ -93,34 +101,31 @@ function MainContent() {
     );
   }
 
-  const handleOpenAddModal = () => {
-    console.log("[DEBUG] App: handleOpenAddModal aufgerufen");
-    setAddModalVisible(true);
-  };
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <TotalValueHeader 
-        totalValue={totalValue} 
-        performance={performance} 
-        onMenuPress={() => setMenuVisible(true)} 
-      />
-
-      <View style={styles.content}>
-        <PortfolioList 
-          portfolios={portfolios}
-          chartData={chartData}
-          aggregation={aggregation}
-          onFilterChange={(limit) => setCurrentTimeLimit(limit)}
+    <View style={styles.container}>
+      {/* 1. Content Layer: Enthält alles Sichtbare mit Insets */}
+      <View style={[styles.mainLayer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <TotalValueHeader 
+          totalValue={totalValue} 
+          performance={performance} 
+          onMenuPress={handleOpenMenu} 
         />
+        <View style={styles.content}>
+          <PortfolioList 
+            portfolios={portfolios}
+            chartData={chartData}
+            aggregation={aggregation}
+            onFilterChange={(limit) => setCurrentTimeLimit(limit)}
+            onProviderPress={(p) => handleOpenAddModal(p)}
+          />
+        </View>
+        <AddAssetButton onPress={() => handleOpenAddModal(null)} />
       </View>
 
-      <View style={styles.buttonLayer}>
-        <AddAssetButton onPress={handleOpenAddModal} />
-      </View>
-
+      {/* 2. Overlay Layer: Alle JS-Modale */}
       <AddAssetModal 
         visible={isAddModalVisible} 
+        initialProvider={selectedInitialProvider}
         onClose={() => setAddModalVisible(false)} 
         onSave={handleSaveAsset} 
       />
@@ -161,12 +166,7 @@ export default function App() { return (<SafeAreaProvider><MainContent /></SafeA
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
+  mainLayer: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { flex: 1 },
-  buttonLayer: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    zIndex: 50,
-  }
 });

@@ -1,18 +1,19 @@
 // components/PortfolioList.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Refactoring: Umstellung auf FlatList für bessere Performance
-// Integration: Chart als ListHeaderComponent zur Vermeidung von Nested-Scroll-Warnings
+// Integration: Chart als ListHeaderComponent zur Vermeidung von Layout-Fehlern
+// Neu: Provider-Einträge anklickbar machen
 
 import React from 'react';
-import { StyleSheet, Text, View, FlatList } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity } from 'react-native';
 import { Theme } from './Theme';
 import { AppConstants } from '../constants/AppConstants';
 import Chart from './Chart';
 
-export default function PortfolioList({ portfolios, chartData, aggregation, onFilterChange }) {
+export default function PortfolioList({ portfolios, chartData, aggregation, onFilterChange, onProviderPress }) {
   
   const formatDate = (timestamp) => {
-    if (!timestamp) return '';
+    if (!timestamp) return 'Noch kein Eintrag';
     const date = new Date(timestamp);
     return date.toLocaleDateString('de-DE', {
       day: '2-digit',
@@ -23,17 +24,22 @@ export default function PortfolioList({ portfolios, chartData, aggregation, onFi
     });
   };
 
+  // Diese Logik stellt sicher, dass alle Anbieter aus den AppConstants angezeigt werden
   const displayPortfolios = AppConstants.PROVIDERS.map(providerName => {
     const existingData = portfolios.find(p => p.provider === providerName);
     return existingData || {
       provider: providerName,
       value: 0,
-      timestamp: Date.now()
+      timestamp: null
     };
   });
 
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
+    <TouchableOpacity 
+      style={styles.card} 
+      onPress={() => onProviderPress(item.provider)}
+      activeOpacity={0.7}
+    >
       <View style={styles.row}>
         <View style={styles.infoColumn}>
           <Text style={styles.providerName}>{item.provider}</Text>
@@ -43,7 +49,7 @@ export default function PortfolioList({ portfolios, chartData, aggregation, onFi
           {item.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderHeader = () => (

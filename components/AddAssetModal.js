@@ -1,6 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Debug-Logs für Modal-Rendering
+// Refactoring: Support für initialen Provider bei Modal-Öffnung
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
@@ -25,7 +25,7 @@ import { AppConstants } from '../constants/AppConstants';
 import ImagePreviewModal from './ImagePreviewModal';
 import AssetInputRow from './AssetInputRow';
 
-export default function AddAssetModal({ visible, onClose, onSave }) {
+export default function AddAssetModal({ visible, onClose, onSave, initialProvider }) {
   const [rows, setRows] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -33,29 +33,27 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const [shouldRender, setShouldRender] = useState(visible);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Debug-Logs
-  console.log(`[DEBUG] AddAssetModal: Render - visible=${visible}, shouldRender=${shouldRender}`);
-
   useEffect(() => {
-    console.log(`[DEBUG] AddAssetModal: visible Effekt ausgelöst - visible=${visible}`);
     if (visible) {
       setShouldRender(true);
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 300,
         useNativeDriver: true,
-      }).start(() => console.log("[DEBUG] AddAssetModal: Einblend-Animation beendet"));
+      }).start();
     } else {
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 250,
         useNativeDriver: true,
-      }).start(() => {
-        console.log("[DEBUG] AddAssetModal: Ausblend-Animation beendet, setShouldRender(false)");
-        setShouldRender(false);
-      });
+      }).start(() => setShouldRender(false));
     }
   }, [visible, fadeAnim]);
+
+  const resetAndClose = useCallback(() => {
+    setRows([]);
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     if (visible) {
@@ -73,10 +71,10 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     setHasApiKey(!!key);
   }, []);
 
-  const addEmptyRow = useCallback(() => {
+  const addEmptyRow = useCallback((providerOverride = null) => {
     const newRow = {
       id: Date.now() + Math.random(),
-      provider: AppConstants.PROVIDERS[0],
+      provider: providerOverride || AppConstants.PROVIDERS[0],
       value: '',
       timestamp: Date.now(),
       status: 'manual', 
@@ -94,25 +92,14 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
     setRows(prev => prev.map(r => r.id === id ? { ...r, ...fields } : r));
   }, []);
 
-  const resetAndClose = useCallback(() => {
-    setRows([]);
-    onClose();
-  }, [onClose]);
-
-  const handleNativeDateChange = (event, selectedDate) => {
-    setShowNativePicker(false);
-    if (selectedDate && activeRowId) {
-      updateRow(activeRowId, { timestamp: selectedDate.getTime() });
-      setShowDatePickerModal(false);
-    }
-  };
-
   useEffect(() => {
     if (visible) {
       checkKeyStatus();
-      if (rows.length === 0) addEmptyRow();
+      if (rows.length === 0) {
+        addEmptyRow(initialProvider); 
+      }
     }
-  }, [visible, checkKeyStatus, addEmptyRow, rows.length]);
+  }, [visible, checkKeyStatus, addEmptyRow, rows.length, initialProvider]);
 
   const [previewRow, setPreviewRow] = useState(null);
   const [tempAmount, setTempAmount] = useState('');
@@ -122,6 +109,14 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
   const [showProviderPicker, setShowProviderPicker] = useState(false);
   const [showDatePickerModal, setShowDatePickerModal] = useState(false);
   const [showNativePicker, setShowNativePicker] = useState(false);
+
+  const handleNativeDateChange = (event, selectedDate) => {
+    setShowNativePicker(false);
+    if (selectedDate && activeRowId) {
+      updateRow(activeRowId, { timestamp: selectedDate.getTime() });
+      setShowDatePickerModal(false);
+    }
+  };
 
   const handlePickImage = async (rowId) => {
     if (!hasApiKey) {
@@ -240,7 +235,7 @@ export default function AddAssetModal({ visible, onClose, onSave }) {
             />
           ))}
 
-          <TouchableOpacity style={styles.addBtn} onPress={addEmptyRow}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => addEmptyRow(null)}>
             <Ionicons name="add-circle-outline" size={24} color={Theme.colors.textSecondary} />
             <Text style={styles.addBtnText}>Weiteren Provider hinzufügen</Text>
           </TouchableOpacity>

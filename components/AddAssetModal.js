@@ -1,6 +1,6 @@
 // components/AddAssetModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Support für initialen Provider bei Modal-Öffnung
+// Refactoring: Support für initialen Provider & ImagePicker-Kompatibilitäts-Fix
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
@@ -123,19 +123,33 @@ export default function AddAssetModal({ visible, onClose, onSave, initialProvide
       global.notify("API-Key fehlt", "error");
       return;
     }
-    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!granted) return;
+    
+    try {
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) {
+        global.notify("Berechtigung verweigert", "error");
+        return;
+      }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      base64: true,
-    });
+      // Kompatibilitäts-Fix: Prüft welche Konstante verfügbar ist
+      const mediaTypesValue = ImagePicker.MediaType 
+        ? ImagePicker.MediaType.Images 
+        : ImagePicker.MediaTypeOptions.Images;
 
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
-      updateRow(rowId, { imageUri: uri });
-      processImage(rowId, result.assets[0].base64);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: mediaTypesValue,
+        quality: 0.7,
+        base64: true,
+      });
+
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        updateRow(rowId, { imageUri: uri });
+        processImage(rowId, result.assets[0].base64);
+      }
+    } catch (error) {
+      console.error("Fehler beim Öffnen der Galerie:", error);
+      global.notify("Galerie-Fehler", "error");
     }
   };
 

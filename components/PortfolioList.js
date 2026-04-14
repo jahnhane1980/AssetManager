@@ -24,7 +24,6 @@ export default function PortfolioList({ portfolios, chartData, aggregation, onFi
     });
   };
 
-  // Diese Logik stellt sicher, dass alle Anbieter aus den AppConstants angezeigt werden
   const displayPortfolios = AppConstants.PROVIDERS.map(providerName => {
     const existingData = portfolios.find(p => p.provider === providerName);
     return existingData || {
@@ -78,7 +77,7 @@ export default function PortfolioList({ portfolios, chartData, aggregation, onFi
 const styles = StyleSheet.create({
   listContent: {
     padding: Theme.spacing.m,
-    paddingBottom: 80, // Platz für FAB
+    paddingBottom: 100, // Platz für FAB
   },
   headerContainer: {
     marginBottom: Theme.spacing.s,

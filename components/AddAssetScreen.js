@@ -1,6 +1,6 @@
 // components/AddAssetScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Logik in useAssetForm, ImagePickerHelper und GeminiService ausgelagert
+// Refactoring: UI-Komponente FormFooter ausgelagert
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -21,7 +21,9 @@ import AssetRepository from '../repositories/AssetRepository';
 import ImagePreviewModal from './ImagePreviewModal';
 import AssetInputRow from './AssetInputRow';
 import ScreenHeader from './ScreenHeader';
-import PrimaryButton from './PrimaryButton';
+import FormFooter from './FormFooter'; // Neu importiert
+import ProviderPickerModal from './ProviderPickerModal';
+import DatePickerModal from './DatePickerModal';
 
 import GeminiService from '../services/GeminiService';
 import ImagePickerHelper from '../utils/ImagePickerHelper';
@@ -172,13 +174,11 @@ export default function AddAssetScreen({ navigation, route }) {
           <View style={{ height: 40 }} />
         </ScrollView>
 
-        <View style={styles.footer}>
-          <PrimaryButton 
-            title="Alle Werte speichern"
-            onPress={handleSaveAll}
-            loading={isSubmitting}
-          />
-        </View>
+        <FormFooter 
+          title="Alle Werte speichern"
+          onSave={handleSaveAll}
+          loading={isSubmitting}
+        />
 
       </KeyboardAvoidingView>
 
@@ -192,47 +192,25 @@ export default function AddAssetScreen({ navigation, route }) {
         showFeedback={showSuccessFeedback}
       />
 
-      {showProviderPicker && (
-        <View style={styles.subOverlayContainer}>
-          <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowProviderPicker(false)} />
-          <View style={styles.pickerContent}>
-            <Text style={styles.pickerTitle}>Anbieter wählen</Text>
-            <ScrollView style={{ maxHeight: 300 }}>
-              {AppConstants.PROVIDERS.map(p => (
-                <TouchableOpacity key={p} style={styles.pickerItem} onPress={() => { updateRow(activeRowId, { provider: p }); setShowProviderPicker(false); }}>
-                  <Text style={styles.pickerItemText}>{p}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      )}
+      <ProviderPickerModal
+        visible={showProviderPicker}
+        onClose={() => setShowProviderPicker(false)}
+        onSelect={(p) => { 
+          updateRow(activeRowId, { provider: p }); 
+          setShowProviderPicker(false); 
+        }}
+        providers={AppConstants.PROVIDERS}
+      />
 
-      {showDatePickerModal && (
-        <View style={styles.subOverlayContainer}>
-          <TouchableOpacity style={styles.subOverlayBackdrop} activeOpacity={1} onPress={() => setShowDatePickerModal(false)} />
-          <View style={styles.pickerContent}>
-            <Text style={styles.pickerTitle}>Datum wählen</Text>
-            <View style={styles.quickSelectRow}>
-              {[0, 1].map(daysBack => {
-                const d = new Date();
-                d.setDate(d.getDate() - daysBack);
-                const label = daysBack === 0 ? "Heute" : "Gestern";
-                return (
-                  <TouchableOpacity key={daysBack} style={styles.quickBtn} onPress={() => { updateRow(activeRowId, { timestamp: d.getTime() }); setShowDatePickerModal(false); }}>
-                    <Text style={styles.quickBtnText}>{label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <View style={styles.divider} />
-            <TouchableOpacity style={styles.fullWidthBtn} onPress={() => setShowNativePicker(true)}>
-              <Ionicons name="calendar" size={20} color={Theme.colors.primary} />
-              <Text style={styles.fullWidthBtnText}>Anderes Datum wählen</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <DatePickerModal
+        visible={showDatePickerModal}
+        onClose={() => setShowDatePickerModal(false)}
+        onSelectQuick={(ts) => { 
+          updateRow(activeRowId, { timestamp: ts }); 
+          setShowDatePickerModal(false); 
+        }}
+        onOpenNative={() => setShowNativePicker(true)}
+      />
 
       {showNativePicker && (
         <DateTimePicker
@@ -251,19 +229,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
   keyboardContainer: { flex: 1 },
   scrollArea: { padding: Theme.spacing.m, flex: 1 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: Theme.spacing.l, gap: 10, borderStyle: 'dashed', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: Theme.borderRadius.m, marginTop: 5 },
-  addBtnText: { color: Theme.colors.textSecondary, fontWeight: Theme.fontWeight.medium },
-  footer: { padding: Theme.spacing.l, paddingBottom: Platform.OS === 'ios' ? 40 : Theme.spacing.l, backgroundColor: Theme.colors.surface, borderTopWidth: 1, borderTopColor: Theme.colors.border },
-  subOverlayContainer: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 110 },
-  subOverlayBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  pickerContent: { width: '85%', backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, padding: Theme.spacing.l, elevation: 5 },
-  pickerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, marginBottom: Theme.spacing.l, textAlign: 'center' },
-  quickSelectRow: { flexDirection: 'row', gap: 10, marginBottom: Theme.spacing.m },
-  quickBtn: { flex: 1, backgroundColor: Theme.colors.background, padding: 12, borderRadius: Theme.borderRadius.m, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
-  quickBtnText: { fontWeight: Theme.fontWeight.semibold, color: Theme.colors.primary },
-  divider: { height: 1, backgroundColor: Theme.colors.border, marginVertical: Theme.spacing.m },
-  fullWidthBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 12, backgroundColor: Theme.colors.background, borderRadius: Theme.borderRadius.m, borderWidth: 1, borderColor: Theme.colors.border },
-  fullWidthBtnText: { color: Theme.colors.primary, fontWeight: Theme.fontWeight.semibold },
-  pickerItem: { paddingVertical: Theme.spacing.m, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
-  pickerItemText: { fontSize: Theme.fontSize.body, color: Theme.colors.text, textAlign: 'center' }
+  addBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    padding: Theme.spacing.l, 
+    gap: 10, 
+    borderStyle: 'dashed', 
+    borderWidth: 1, 
+    borderColor: Theme.colors.border, 
+    borderRadius: Theme.borderRadius.m, 
+    marginTop: 5 
+  },
+  addBtnText: { 
+    color: Theme.colors.textSecondary, 
+    fontWeight: Theme.fontWeight.medium 
+  }
 });

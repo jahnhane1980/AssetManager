@@ -1,6 +1,7 @@
 // components/AddAssetScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Refactoring: UI-Komponente FormFooter ausgelagert
+// Update: Bild-Datum (timestamp) wird bei der Auswahl übernommen, falls vorhanden
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -21,7 +22,7 @@ import AssetRepository from '../repositories/AssetRepository';
 import ImagePreviewModal from './ImagePreviewModal';
 import AssetInputRow from './AssetInputRow';
 import ScreenHeader from './ScreenHeader';
-import FormFooter from './FormFooter'; // Neu importiert
+import FormFooter from './FormFooter'; 
 import ProviderPickerModal from './ProviderPickerModal';
 import DatePickerModal from './DatePickerModal';
 
@@ -74,7 +75,13 @@ export default function AddAssetScreen({ navigation, route }) {
     try {
       const imageData = await ImagePickerHelper.pickImageFromLibrary();
       if (imageData) {
-        updateRow(rowId, { imageUri: imageData.uri });
+        // Wenn ein Timestamp im Bild gefunden wurde, diesen auch aktualisieren
+        const updateData = { imageUri: imageData.uri };
+        if (imageData.timestamp) {
+          updateData.timestamp = imageData.timestamp;
+        }
+        
+        updateRow(rowId, updateData);
         processImage(rowId, imageData.base64);
       }
     } catch (error) {

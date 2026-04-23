@@ -1,6 +1,6 @@
 // components/Chart.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Implementierung interaktiver Tooltips via PanResponder
+// Update: heightOverride hinzugefügt für kompakte Darstellung im Accordion
 
 import React, { useState, useMemo } from 'react';
 import { View, Dimensions, StyleSheet, TouchableOpacity, Text, PanResponder } from 'react-native';
@@ -9,23 +9,22 @@ import { Theme } from './Theme';
 import { AppConstants } from '../constants/AppConstants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const { HEIGHT, PADDING, FILTERS } = AppConstants.CHART;
+const { HEIGHT: DEFAULT_HEIGHT, PADDING, FILTERS } = AppConstants.CHART;
 
 const CHART_TYPES = {
   LINE: 'LINE',
   BAR: 'BAR'
 };
 
-export default function Chart({ data, aggregation, onFilterChange }) {
+export default function Chart({ data, aggregation, onFilterChange, heightOverride }) {
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [chartType, setChartType] = useState(CHART_TYPES.LINE);
-  
-  // State für den aktuell berührten Datenpunkt
   const [activeIndex, setActiveIndex] = useState(null);
 
+  // Nutzt den Override oder den Standardwert aus den Constants
+  const chartHeight = heightOverride || DEFAULT_HEIGHT; 
   const chartWidth = SCREEN_WIDTH - 30;
 
-  // Hilfsfunktion zum Berechnen der Min/Max Werte
   const minMax = useMemo(() => {
     if (!data || data.length === 0) return null;
     const values = data.map(d => d.value);
@@ -40,20 +39,15 @@ export default function Chart({ data, aggregation, onFilterChange }) {
     };
   }, [data]);
 
-  // PanResponder zur Erfassung von Touch-Gesten
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderMove: (evt) => {
       if (!data || data.length < 2) return;
-      
       const touchX = evt.nativeEvent.locationX;
       const availableWidth = chartWidth - PADDING * 2;
-      
-      // Berechnung des nächstgelegenen Datenpunkt-Index
       let index = Math.round(((touchX - PADDING) / availableWidth) * (data.length - 1));
       index = Math.max(0, Math.min(index, data.length - 1));
-      
       setActiveIndex(index);
     },
     onPanResponderRelease: () => setActiveIndex(null),
@@ -64,18 +58,10 @@ export default function Chart({ data, aggregation, onFilterChange }) {
     setActiveFilter(filter);
     let timeLimit = 0;
     const now = new Date();
-    
-    if (filter === '3M') {
-      now.setMonth(now.getMonth() - 3);
-      timeLimit = now.getTime();
-    } else if (filter === '6M') {
-      now.setMonth(now.getMonth() - 6);
-      timeLimit = now.getTime();
-    } else if (filter === '1Y') {
-      now.setFullYear(now.getFullYear() - 1);
-      timeLimit = now.getTime();
-    }
-    
+    if (filter === '3M') now.setMonth(now.getMonth() - 3);
+    else if (filter === '6M') now.setMonth(now.getMonth() - 6);
+    else if (filter === '1Y') now.setFullYear(now.getFullYear() - 1);
+    timeLimit = (filter === 'ALL') ? 0 : now.getTime();
     if (onFilterChange) onFilterChange(timeLimit);
   };
 
@@ -91,68 +77,19 @@ export default function Chart({ data, aggregation, onFilterChange }) {
 
   const renderTooltip = () => {
     if (activeIndex === null || !data || !data[activeIndex] || !minMax) return null;
-
     const d = data[activeIndex];
     const { adjMin, adjRange } = minMax;
-    
-    // X & Y Position des Punktes berechnen
     const x = PADDING + (activeIndex * (chartWidth - PADDING * 2)) / (data.length - 1);
-    const y = HEIGHT - PADDING - ((d.value - adjMin) / adjRange) * (HEIGHT - PADDING * 2);
-
-    const formattedValue = d.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-    const formattedDate = new Date(d.timestamp).toLocaleDateString('de-DE');
-
-    // Tooltip-Box Positionierung (verhindert Überlappen am Rand)
-    const boxWidth = 100;
-    const boxX = x > chartWidth / 2 ? x - boxWidth - 10 : x + 10;
+    const y = chartHeight - PADDING - ((d.value - adjMin) / adjRange) * (chartHeight - PADDING * 2);
+    const boxX = x > chartWidth / 2 ? x - 110 : x + 10;
 
     return (
       <G>
-        {/* Vertikale Hilfslinie */}
-        <Line 
-          x1={x} y1={PADDING} 
-          x2={x} y2={HEIGHT - PADDING} 
-          stroke={Theme.colors.border} 
-          strokeDasharray="4,4" 
-        />
-        
-        {/* Highlight Punkt */}
-        <Circle 
-          cx={x} cy={y} 
-          r="6" 
-          fill={Theme.colors.primary} 
-          stroke={Theme.colors.white} 
-          strokeWidth="2" 
-        />
-
-        {/* Tooltip Box */}
-        <Rect
-          x={boxX}
-          y={y - 45}
-          width={boxWidth}
-          height={40}
-          rx="5"
-          fill={Theme.colors.surface}
-          stroke={Theme.colors.border}
-          elevation={3}
-        />
-        <SvgText
-          x={boxX + 5}
-          y={y - 30}
-          fontSize="10"
-          fontWeight="bold"
-          fill={Theme.colors.text}
-        >
-          {formattedValue}
-        </SvgText>
-        <SvgText
-          x={boxX + 5}
-          y={y - 15}
-          fontSize="9"
-          fill={Theme.colors.textSecondary}
-        >
-          {formattedDate}
-        </SvgText>
+        <Line x1={x} y1={PADDING} x2={x} y2={chartHeight - PADDING} stroke={Theme.colors.border} strokeDasharray="4,4" />
+        <Circle cx={x} cy={y} r="6" fill={Theme.colors.primary} stroke={Theme.colors.white} strokeWidth="2" />
+        <Rect x={boxX} y={y - 45} width={100} height={40} rx="5" fill={Theme.colors.surface} stroke={Theme.colors.border} />
+        <SvgText x={boxX + 5} y={y - 30} fontSize="10" fontWeight="bold" fill={Theme.colors.text}>{d.value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</SvgText>
+        <SvgText x={boxX + 5} y={y - 15} fontSize="9" fill={Theme.colors.textSecondary}>{new Date(d.timestamp).toLocaleDateString('de-DE')}</SvgText>
       </G>
     );
   };
@@ -161,13 +98,11 @@ export default function Chart({ data, aggregation, onFilterChange }) {
     const { adjMin, adjRange } = minMax;
     const points = data.map((d, i) => {
       const x = PADDING + (i * (chartWidth - PADDING * 2)) / (data.length - 1);
-      const y = HEIGHT - PADDING - ((d.value - adjMin) / adjRange) * (HEIGHT - PADDING * 2);
+      const y = chartHeight - PADDING - ((d.value - adjMin) / adjRange) * (chartHeight - PADDING * 2);
       return `${x},${y}`;
     });
-
     const dLine = `M ${points.join(' L ')}`;
-    const dArea = `${dLine} L ${points[points.length - 1].split(',')[0]},${HEIGHT} L ${points[0].split(',')[0]},${HEIGHT} Z`;
-
+    const dArea = `${dLine} L ${points[points.length - 1].split(',')[0]},${chartHeight} L ${points[0].split(',')[0]},${chartHeight} Z`;
     return (
       <>
         <Path d={dLine} fill="none" stroke={Theme.colors.primary} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -178,24 +113,17 @@ export default function Chart({ data, aggregation, onFilterChange }) {
 
   const renderBarChart = () => {
     const { adjMin, adjRange } = minMax;
-    const availableWidth = chartWidth - PADDING * 2;
-    const fullBarWidth = availableWidth / data.length;
+    const fullBarWidth = (chartWidth - PADDING * 2) / data.length;
     const gap = fullBarWidth * 0.2;
     const barWidth = fullBarWidth - gap;
 
     return data.map((d, i) => {
       const x = PADDING + (i * fullBarWidth) + (gap / 2);
-      const valueRatio = (d.value - adjMin) / adjRange;
-      const barHeight = Math.max(2, valueRatio * (HEIGHT - PADDING * 2));
-      const y = HEIGHT - PADDING - barHeight;
+      const barHeight = Math.max(2, ((d.value - adjMin) / adjRange) * (chartHeight - PADDING * 2));
+      const y = chartHeight - PADDING - barHeight;
       const radius = Math.min(barWidth / 2, 5);
-      
       return (
-        <Path
-          key={`bar-${i}`}
-          d={`M ${x},${HEIGHT - PADDING} L ${x},${y + radius} Q ${x},${y} ${x + radius},${y} L ${x + barWidth - radius},${y} Q ${x + barWidth},${y} ${x + barWidth},${y + radius} L ${x + barWidth},${HEIGHT - PADDING} Z`}
-          fill={activeIndex === i ? Theme.colors.primary : "url(#gradBar)"}
-        />
+        <Path key={`bar-${i}`} d={`M ${x},${chartHeight - PADDING} L ${x},${y + radius} Q ${x},${y} ${x + radius},${y} L ${x + barWidth - radius},${y} Q ${x + barWidth},${y} ${x + barWidth},${y + radius} L ${x + barWidth},${chartHeight - PADDING} Z`} fill={activeIndex === i ? Theme.colors.primary : "url(#gradBar)"} />
       );
     });
   };
@@ -203,19 +131,19 @@ export default function Chart({ data, aggregation, onFilterChange }) {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.infoText}>Auflösung: {getAggregationLabel()}</Text>
+        <Text style={styles.infoText}>{getAggregationLabel()}</Text>
         <View style={styles.typeSwitcher}>
           <TouchableOpacity onPress={() => setChartType(CHART_TYPES.LINE)} style={[styles.typeBtn, chartType === CHART_TYPES.LINE && styles.typeBtnActive]}>
-            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.LINE && styles.typeBtnTextActive]}>Linie</Text>
+            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.LINE && styles.typeBtnTextActive]}>📈</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setChartType(CHART_TYPES.BAR)} style={[styles.typeBtn, chartType === CHART_TYPES.BAR && styles.typeBtnActive]}>
-            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.BAR && styles.typeBtnTextActive]}>Balken</Text>
+            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.BAR && styles.typeBtnTextActive]}>📊</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.chartArea} {...panResponder.panHandlers}>
-        <Svg height={HEIGHT} width={chartWidth}>
+        <Svg height={chartHeight} width={chartWidth}>
           <Defs>
             <LinearGradient id="gradLine" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={Theme.colors.primary} stopOpacity="0.2" />
@@ -226,27 +154,29 @@ export default function Chart({ data, aggregation, onFilterChange }) {
               <Stop offset="1" stopColor={Theme.colors.primary} stopOpacity="0.4" />
             </LinearGradient>
           </Defs>
-          
           {data && data.length >= 2 ? (
             <>
               {chartType === CHART_TYPES.LINE ? renderLineChart() : renderBarChart()}
               {renderTooltip()}
             </>
           ) : (
-            <SvgText x={chartWidth / 2} y={HEIGHT / 2} textAnchor="middle" fill={Theme.colors.textSecondary} fontSize="12">
-              {data && data.length === 1 ? "Mehr Daten erforderlich..." : "Keine Daten vorhanden."}
+            <SvgText x={chartWidth / 2} y={chartHeight / 2} textAnchor="middle" fill={Theme.colors.textSecondary} fontSize="12">
+              Keine Daten.
             </SvgText>
           )}
         </Svg>
       </View>
       
-      <View style={styles.filterRow}>
-        {FILTERS.map(f => (
-          <TouchableOpacity key={f} onPress={() => handleFilterPress(f)} style={[styles.filterBtn, activeFilter === f && styles.filterBtnActive]}>
-            <Text style={[styles.filterBtnText, activeFilter === f && styles.filterBtnTextActive]}>{f}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Filterleiste nur im Haupt-Chart anzeigen (nicht im Accordion) */}
+      {!heightOverride && (
+        <View style={styles.filterRow}>
+          {FILTERS.map(f => (
+            <TouchableOpacity key={f} onPress={() => handleFilterPress(f)} style={[styles.filterBtn, activeFilter === f && styles.filterBtnActive]}>
+              <Text style={[styles.filterBtnText, activeFilter === f && styles.filterBtnTextActive]}>{f}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -254,13 +184,13 @@ export default function Chart({ data, aggregation, onFilterChange }) {
 const styles = StyleSheet.create({
   container: { backgroundColor: Theme.colors.surface, borderRadius: Theme.borderRadius.l, paddingVertical: Theme.spacing.m, marginBottom: Theme.spacing.l, elevation: 2, alignItems: 'center' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingHorizontal: Theme.spacing.l, marginBottom: 5 },
-  infoText: { fontSize: 10, color: Theme.colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1 },
+  infoText: { fontSize: 10, color: Theme.colors.textSecondary, textTransform: 'uppercase' },
   typeSwitcher: { flexDirection: 'row', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: 15, overflow: 'hidden' },
-  typeBtn: { paddingVertical: 4, paddingHorizontal: 10, backgroundColor: Theme.colors.surface },
+  typeBtn: { paddingVertical: 2, paddingHorizontal: 8 },
   typeBtnActive: { backgroundColor: Theme.colors.primary },
-  typeBtnText: { fontSize: 10, fontWeight: Theme.fontWeight.bold, color: Theme.colors.textSecondary },
+  typeBtnText: { fontSize: 10 },
   typeBtnTextActive: { color: Theme.colors.white },
-  chartArea: { height: HEIGHT, width: '100%', alignItems: 'center' },
+  chartArea: { width: '100%', alignItems: 'center' },
   filterRow: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', marginTop: 10 },
   filterBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20 },
   filterBtnActive: { backgroundColor: Theme.colors.primary },

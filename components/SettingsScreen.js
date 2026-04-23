@@ -1,25 +1,26 @@
 // components/SettingsScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung von JS-Modal auf echten Navigation-Screen
+// Refactoring: Integration von PrimaryButton für konsistentes UI
 
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   ScrollView
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import { Security } from './Security';
+import ScreenHeader from './ScreenHeader';
+import PrimaryButton from './PrimaryButton'; // Neu importiert
 
 export default function SettingsScreen({ navigation }) {
   const [apiKey, setApiKey] = useState('');
   const [pageSize, setPageSize] = useState('');
+  const [isSaving, setIsSaving] = useState(false); // Neuer Lade-State
 
   useEffect(() => {
     loadSettings();
@@ -44,6 +45,7 @@ export default function SettingsScreen({ navigation }) {
       return;
     }
 
+    setIsSaving(true);
     try {
       const successKey = apiKey.trim() ? await Security.setGeminiKey(apiKey.trim()) : true;
       const successSize = await Security.setPageSize(parsedSize);
@@ -56,6 +58,8 @@ export default function SettingsScreen({ navigation }) {
       }
     } catch (error) {
       global.notify("Systemfehler beim Speichern", "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -65,12 +69,10 @@ export default function SettingsScreen({ navigation }) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardContainer}
       >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Einstellungen</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtnContainer}>
-            <Ionicons name="close" size={24} color={Theme.colors.primary} />
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader 
+          title="Einstellungen" 
+          onClose={() => navigation.goBack()} 
+        />
 
         <ScrollView style={styles.content}>
           <Text style={styles.label}>Gemini AI API-Key</Text>
@@ -98,9 +100,11 @@ export default function SettingsScreen({ navigation }) {
             keyboardType="numeric"
           />
 
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Speichern</Text>
-          </TouchableOpacity>
+          <PrimaryButton 
+            title="Einstellungen speichern"
+            onPress={handleSave}
+            loading={isSaving}
+          />
           
           <View style={{ height: 30 }} />
         </ScrollView>
@@ -117,22 +121,8 @@ const styles = StyleSheet.create({
   keyboardContainer: { 
     flex: 1 
   },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    padding: Theme.spacing.l, 
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    borderBottomWidth: 1, 
-    borderBottomColor: Theme.colors.border, 
-    alignItems: 'center',
-    backgroundColor: Theme.colors.surface
-  },
-  headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  closeBtnContainer: { padding: 5 },
   content: { padding: Theme.spacing.l, flex: 1 },
   label: { fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.semibold, color: Theme.colors.text, marginBottom: 5 },
   description: { fontSize: Theme.fontSize.description, color: Theme.colors.textSecondary, marginBottom: Theme.spacing.m, lineHeight: 18 },
-  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: Theme.fontSize.body, marginBottom: Theme.spacing.l, color: Theme.colors.text },
-  saveBtn: { backgroundColor: Theme.colors.primary, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, alignItems: 'center', marginBottom: Theme.spacing.m },
-  saveBtnText: { color: Theme.colors.white, fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold }
+  input: { borderWidth: 1, borderColor: Theme.colors.border, padding: Theme.spacing.m, borderRadius: Theme.borderRadius.m, fontSize: Theme.fontSize.body, marginBottom: Theme.spacing.l, color: Theme.colors.text }
 });

@@ -1,6 +1,6 @@
 // components/BackupScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Umstellung von BackupModal auf vollwertigen Navigation-Screen
+// Refactoring: Integration von PrimaryButton (inkl. Google und Outline Varianten)
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -17,14 +17,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import GoogleDriveService from '../services/GoogleDriveService';
 import AssetRepository from '../repositories/AssetRepository';
+import ScreenHeader from './ScreenHeader';
+import PrimaryButton from './PrimaryButton'; // Neu importiert
 
 export default function BackupScreen({ navigation, route }) {
   const [isDriveReady, setIsDriveReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
-
-  // Die onRestoreSuccess-Callback Logik aus dem alten Modal wird jetzt
-  // über den Fokus-Listener der App.js (refresh) automatisch abgedeckt.
 
   useEffect(() => {
     initDrive();
@@ -93,7 +92,6 @@ export default function BackupScreen({ navigation, route }) {
               if (backupData) {
                 await AssetRepository.restoreData(backupData);
                 global.notify("Daten erfolgreich wiederhergestellt", "success");
-                // Wir gehen zurück, App.js aktualisiert sich per useFocusEffect
                 setTimeout(() => navigation.goBack(), 1500);
               } else {
                 global.notify("Kein Backup gefunden", "info");
@@ -111,12 +109,10 @@ export default function BackupScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Backup & Restore</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
-          <Ionicons name="close" size={24} color={Theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader 
+        title="Backup & Restore" 
+        onClose={() => navigation.goBack()} 
+      />
 
       <ScrollView style={styles.content}>
         <View style={styles.infoCard}>
@@ -129,14 +125,13 @@ export default function BackupScreen({ navigation, route }) {
         </View>
 
         {!isDriveReady ? (
-          <TouchableOpacity 
-            style={styles.googleBtn} 
+          <PrimaryButton
+            title="Mit Google verbinden"
+            icon="logo-google"
+            variant="google"
             onPress={handleGoogleSignIn}
             disabled={isProcessing}
-          >
-            <Ionicons name="logo-google" size={20} color={Theme.colors.white} />
-            <Text style={styles.googleBtnText}>Mit Google verbinden</Text>
-          </TouchableOpacity>
+          />
         ) : (
           <View style={styles.accountInfo}>
             <Text style={styles.accountLabel}>Verbunden als:</Text>
@@ -145,23 +140,21 @@ export default function BackupScreen({ navigation, route }) {
         )}
 
         <View style={styles.actionSection}>
-          <TouchableOpacity 
-            style={[styles.actionBtn, (!isDriveReady || isProcessing) && styles.disabledBtn]} 
+          <PrimaryButton
+            title="Backup jetzt erstellen"
+            icon="cloud-upload-outline"
+            variant="primary"
             onPress={handleBackup}
             disabled={!isDriveReady || isProcessing}
-          >
-            <Ionicons name="cloud-upload-outline" size={24} color={Theme.colors.white} />
-            <Text style={styles.actionBtnText}>Backup jetzt erstellen</Text>
-          </TouchableOpacity>
+          />
 
-          <TouchableOpacity 
-            style={[styles.actionBtn, styles.restoreBtn, (!isDriveReady || isProcessing) && styles.disabledBtn]} 
+          <PrimaryButton
+            title="Backup einspielen"
+            icon="cloud-download-outline"
+            variant="outline"
             onPress={handleRestore}
             disabled={!isDriveReady || isProcessing}
-          >
-            <Ionicons name="cloud-download-outline" size={24} color={Theme.colors.primary} />
-            <Text style={[styles.actionBtnText, styles.restoreBtnText]}>Backup einspielen</Text>
-          </TouchableOpacity>
+          />
         </View>
 
         {isProcessing && (
@@ -177,18 +170,6 @@ export default function BackupScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    padding: Theme.spacing.l, 
-    paddingTop: Platform.OS === 'ios' ? 60 : 20, 
-    backgroundColor: Theme.colors.surface, 
-    borderBottomWidth: 1, 
-    borderBottomColor: Theme.colors.border 
-  },
-  headerTitle: { fontSize: Theme.fontSize.subHeader, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text },
-  closeBtn: { padding: 5 },
   content: { flex: 1, padding: Theme.spacing.l },
   infoCard: { 
     backgroundColor: Theme.colors.surface, 
@@ -205,33 +186,10 @@ const styles = StyleSheet.create({
   mainIcon: { marginBottom: Theme.spacing.m },
   cardTitle: { fontSize: Theme.fontSize.body, fontWeight: Theme.fontWeight.bold, color: Theme.colors.text, marginBottom: Theme.spacing.s },
   cardText: { textAlign: 'center', color: Theme.colors.textSecondary, lineHeight: 20, fontSize: Theme.fontSize.description },
-  googleBtn: { 
-    flexDirection: 'row', 
-    backgroundColor: '#4285F4', 
-    padding: Theme.spacing.m, 
-    borderRadius: Theme.borderRadius.m, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    gap: 10 
-  },
-  googleBtnText: { color: Theme.colors.white, fontWeight: Theme.fontWeight.bold },
   accountInfo: { alignItems: 'center', marginBottom: Theme.spacing.l },
   accountLabel: { color: Theme.colors.textSecondary, fontSize: Theme.fontSize.caption },
   accountEmail: { color: Theme.colors.primary, fontWeight: Theme.fontWeight.bold, fontSize: Theme.fontSize.body },
   actionSection: { gap: Theme.spacing.m, marginTop: Theme.spacing.m },
-  actionBtn: { 
-    flexDirection: 'row', 
-    backgroundColor: Theme.colors.primary, 
-    padding: Theme.spacing.l, 
-    borderRadius: Theme.borderRadius.m, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 12 
-  },
-  actionBtnText: { color: Theme.colors.white, fontWeight: Theme.fontWeight.bold, fontSize: Theme.fontSize.body },
-  restoreBtn: { backgroundColor: Theme.colors.background, borderWidth: 2, borderColor: Theme.colors.primary },
-  restoreBtnText: { color: Theme.colors.primary },
-  disabledBtn: { opacity: 0.5 },
   loadingOverlay: { marginTop: Theme.spacing.xl, alignItems: 'center' },
   loadingText: { marginTop: Theme.spacing.m, color: Theme.colors.textSecondary }
 });

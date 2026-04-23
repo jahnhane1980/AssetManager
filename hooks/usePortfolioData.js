@@ -1,6 +1,7 @@
 // hooks/usePortfolioData.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Kapselung der Datenbeschaffung unter Nutzung der FinanceUtils
+// Update: Lädt nun auch alle Rohdaten (allAssets) für die Provider-Diagramme
 
 import { useState, useCallback, useEffect } from 'react';
 import AssetRepository from '../repositories/AssetRepository';
@@ -12,6 +13,7 @@ export function usePortfolioData(isReady, currentTimeLimit) {
     performance: { nominal: 0, percent: 0 },
     portfolios: [],
     chartData: [],
+    allAssets: [], // Neu: Speichert alle Roh-Einträge
     aggregation: 'DAILY',
     isLoading: false
   });
@@ -29,7 +31,10 @@ export function usePortfolioData(isReady, currentTimeLimit) {
       const agg = FinanceUtils.determineAggregation(currentTimeLimit);
       const history = await AssetRepository.getHistory(currentTimeLimit, 1000, 0, 'ASC', agg);
       
-      // 3. Performance berechnen
+      // 3. Rohdaten für Provider-Charts laden (Neu)
+      const rawAssets = await AssetRepository.getAllAssets();
+      
+      // 4. Performance berechnen
       const firstVal = history.length > 0 ? history[0].value : 0;
       const perf = FinanceUtils.calculatePerformance(total, firstVal);
 
@@ -38,6 +43,7 @@ export function usePortfolioData(isReady, currentTimeLimit) {
         performance: perf,
         portfolios: snapshots,
         chartData: history,
+        allAssets: rawAssets, // Neu
         aggregation: agg,
         isLoading: false
       });

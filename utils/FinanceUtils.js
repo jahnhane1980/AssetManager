@@ -2,6 +2,7 @@
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Fachliche Berechnungen für Zeitreihen und Performance
 // Update: Funktion für die Aufbereitung von Provider-Charts hinzugefügt
+// Update: sanitizeCurrencyInput hinzugefügt für globale Punkt-zu-Komma Ersetzung
 
 export const FinanceUtils = {
   /**
@@ -47,5 +48,13 @@ export const FinanceUtils = {
       timestamp: item.timestamp,
       value: item.value
     }));
+  },
+
+  /**
+   * Wandelt Punkte in Kommas um für eine konsistente DE-Eingabe.
+   */
+  sanitizeCurrencyInput: (text) => {
+    if (!text) return '';
+    return text.replace(/\./g, ',');
   }
 };

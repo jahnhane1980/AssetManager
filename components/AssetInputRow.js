@@ -1,6 +1,7 @@
 // components/AssetInputRow.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Update: Punkt-Eingaben werden bei der Eingabe automatisch in Kommas umgewandelt
+// Update: keyboardType auf "decimal-pad" geändert für verlässlichere Komma/Punkt-Eingabe
 
 import React from 'react';
 import { 
@@ -54,7 +55,7 @@ export default function AssetInputRow({
             // Punkt durch Komma ersetzen, bevor der Wert weitergegeben wird
             onChangeText={(text) => onValueChange(text.replace(/\./g, ','))}
             placeholder="0,00"
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
           />
           
           <TouchableOpacity 

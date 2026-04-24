@@ -1,10 +1,12 @@
 // components/Chart.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Update: heightOverride hinzugefügt für kompakte Darstellung im Accordion
+// Update: Emojis durch Ionicons im Type-Switcher ersetzt
 
 import React, { useState, useMemo } from 'react';
 import { View, Dimensions, StyleSheet, TouchableOpacity, Text, PanResponder } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, G, Circle, Line, Rect, Text as SvgText } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
 import { AppConstants } from '../constants/AppConstants';
 
@@ -134,10 +136,10 @@ export default function Chart({ data, aggregation, onFilterChange, heightOverrid
         <Text style={styles.infoText}>{getAggregationLabel()}</Text>
         <View style={styles.typeSwitcher}>
           <TouchableOpacity onPress={() => setChartType(CHART_TYPES.LINE)} style={[styles.typeBtn, chartType === CHART_TYPES.LINE && styles.typeBtnActive]}>
-            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.LINE && styles.typeBtnTextActive]}>📈</Text>
+            <Ionicons name="trending-up" size={16} color={chartType === CHART_TYPES.LINE ? Theme.colors.white : Theme.colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setChartType(CHART_TYPES.BAR)} style={[styles.typeBtn, chartType === CHART_TYPES.BAR && styles.typeBtnActive]}>
-            <Text style={[styles.typeBtnText, chartType === CHART_TYPES.BAR && styles.typeBtnTextActive]}>📊</Text>
+            <Ionicons name="stats-chart" size={16} color={chartType === CHART_TYPES.BAR ? Theme.colors.white : Theme.colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -186,7 +188,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingHorizontal: Theme.spacing.l, marginBottom: 5 },
   infoText: { fontSize: 10, color: Theme.colors.textSecondary, textTransform: 'uppercase' },
   typeSwitcher: { flexDirection: 'row', borderWidth: 1, borderColor: Theme.colors.border, borderRadius: 15, overflow: 'hidden' },
-  typeBtn: { paddingVertical: 2, paddingHorizontal: 8 },
+  typeBtn: { paddingVertical: 4, paddingHorizontal: 10 },
   typeBtnActive: { backgroundColor: Theme.colors.primary },
   typeBtnText: { fontSize: 10 },
   typeBtnTextActive: { color: Theme.colors.white },

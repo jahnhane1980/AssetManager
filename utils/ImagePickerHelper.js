@@ -2,6 +2,7 @@
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Neu: Verbessertes Berechtigungs-Handling (Handling von Limited Access)
 // Update: EXIF-Daten (Datum) werden ausgelesen
+// Fix: Deprecation Warnung für MediaTypeOptions behoben
 
 import * as ImagePicker from 'expo-image-picker';
 import { Alert, Linking } from 'react-native';
@@ -49,12 +50,9 @@ class ImagePickerHelper {
       // Wir fahren trotzdem fort, der Picker zeigt dann nur die Auswahl an
     }
 
-    const mediaTypesValue = (ImagePicker.MediaType && ImagePicker.MediaType.Images)
-      ? ImagePicker.MediaType.Images 
-      : ImagePicker.MediaTypeOptions.Images;
-
+    // Fix: Verwende das neue Array-Format statt des veralteten MediaTypeOptions
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: mediaTypesValue,
+      mediaTypes: ['images'], 
       quality: 0.7,
       base64: true,
       exif: true, // EXIF-Daten anfordern, um das Datum zu bekommen

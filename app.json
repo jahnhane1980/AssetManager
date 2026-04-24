@@ -27,6 +27,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Die App benötigt Zugriff auf deine Fotos, um Belege und Assets für dein Portfolio auszuwählen."
+        }
+      ]
+    ]
   }
 }

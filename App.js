@@ -1,6 +1,7 @@
 // App.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Refactoring: BackupModal zu Screen umgewandelt. Menu und Delete bleiben Modale.
+// Update: allAssets wird für die Accordion-Diagramme an PortfolioList durchgereicht
 
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
@@ -34,11 +35,13 @@ function HomeScreen({ navigation }) {
   const [currentTimeLimit, setCurrentTimeLimit] = useState(0);
   const [activeNotification, setActiveNotification] = useState(null);
   
+  // HIER DIE ÄNDERUNG: allAssets aus dem Hook extrahieren
   const { 
     totalValue, 
     performance, 
     portfolios, 
-    chartData, 
+    chartData,
+    allAssets, // Neu extrahiert für Accordion-Charts
     aggregation, 
     refresh 
   } = usePortfolioData(isReady, currentTimeLimit);
@@ -101,6 +104,7 @@ function HomeScreen({ navigation }) {
           <PortfolioList 
             portfolios={portfolios}
             chartData={chartData}
+            allAssets={allAssets} // HIER DIE ÄNDERUNG: Daten an die Liste durchreichen
             aggregation={aggregation}
             onFilterChange={(limit) => setCurrentTimeLimit(limit)}
             onProviderPress={(p) => navigation.navigate('AddAsset', { initialProvider: p })}

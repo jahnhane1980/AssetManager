@@ -1,6 +1,8 @@
 // utils/FinanceUtils.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Fachliche Berechnungen für Zeitreihen und Performance
+// Update: Funktion für die Aufbereitung von Provider-Charts hinzugefügt
+// Update: sanitizeCurrencyInput hinzugefügt für globale Punkt-zu-Komma Ersetzung
 
 export const FinanceUtils = {
   /**
@@ -29,5 +31,30 @@ export const FinanceUtils = {
     const percent = (nominal / startValue) * 100;
     
     return { nominal, percent };
+  },
+
+  /**
+   * Bereitet die Rohdaten für ein Diagramm eines spezifischen Providers auf.
+   * Filtert und stellt sicher, dass die Daten chronologisch sortiert sind.
+   */
+  processProviderChartData: (assets, providerName) => {
+    if (!assets || assets.length === 0) return [];
+    
+    const providerAssets = assets.filter(a => a.provider === providerName);
+    // Sortierung aufsteigend nach Timestamp für das Diagramm
+    const sorted = providerAssets.sort((a, b) => a.timestamp - b.timestamp);
+    
+    return sorted.map(item => ({
+      timestamp: item.timestamp,
+      value: item.value
+    }));
+  },
+
+  /**
+   * Wandelt Punkte in Kommas um für eine konsistente DE-Eingabe.
+   */
+  sanitizeCurrencyInput: (text) => {
+    if (!text) return '';
+    return text.replace(/\./g, ',');
   }
 };

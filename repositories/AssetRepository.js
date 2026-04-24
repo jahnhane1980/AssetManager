@@ -2,6 +2,7 @@
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Fokus: Kapselung der SQLite-Logik mit Aggregations-Unterstützung
 // Optimierung: Hinzufügen von Indizes zur Beschleunigung von Abfragen und Triggern
+// Update: getAllAssets() hinzugefügt für Provider-Historie
 
 import * as SQLite from 'expo-sqlite';
 import { Config } from '../constants/Config';
@@ -143,6 +144,14 @@ class AssetRepository {
     }
 
     return await this.db.getAllAsync(`${query} ORDER BY date ${order} LIMIT ? OFFSET ?;`, [...params, limit, offset]);
+  }
+
+  /**
+   * Holt alle Roh-Einträge aus der Datenbank (benötigt für Provider-Historien-Charts).
+   */
+  async getAllAssets() {
+    if (!this.db) await this.initialize();
+    return await this.db.getAllAsync(`SELECT provider, value, timestamp FROM ${Config.DATABASE.TABLE_ENTRIES} ORDER BY timestamp ASC;`);
   }
 
   /**

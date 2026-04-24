@@ -1,6 +1,8 @@
 // components/AssetInputRow.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Update: Punkt-Eingaben werden bei der Eingabe automatisch in Kommas umgewandelt
+// Update: keyboardType auf "decimal-pad" geändert für verlässlichere Komma/Punkt-Eingabe
+// Update: Nutzt FinanceUtils.sanitizeCurrencyInput anstelle der direkten Regex
 
 import React from 'react';
 import { 
@@ -13,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
+import { FinanceUtils } from '../utils/FinanceUtils';
 
 export default function AssetInputRow({ 
   row, 
@@ -51,10 +54,10 @@ export default function AssetInputRow({
               row.status === 'processing' && styles.loadingInput
             ]}
             value={row.value}
-            // Punkt durch Komma ersetzen, bevor der Wert weitergegeben wird
-            onChangeText={(text) => onValueChange(text.replace(/\./g, ','))}
+            // Zentrale Utility-Funktion für die Eingabebereinigung nutzen
+            onChangeText={(text) => onValueChange(FinanceUtils.sanitizeCurrencyInput(text))}
             placeholder="0,00"
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
           />
           
           <TouchableOpacity 

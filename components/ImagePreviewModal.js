@@ -1,6 +1,7 @@
 // components/ImagePreviewModal.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Refactoring: Umstellung von nativem Modal auf animierte JS-View
+// Update: Nutzt FinanceUtils für die automatische Punkt-zu-Komma Korrektur & decimal-pad
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -16,6 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Theme } from './Theme';
+import { FinanceUtils } from '../utils/FinanceUtils';
 
 export default function ImagePreviewModal({ 
   visible, 
@@ -67,9 +69,9 @@ export default function ImagePreviewModal({
           <TextInput
             style={styles.previewInput}
             value={amount}
-            onChangeText={onAmountChange}
+            onChangeText={(text) => onAmountChange(FinanceUtils.sanitizeCurrencyInput(text))}
             onBlur={onBlur}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             autoFocus={false}
             placeholder="0,00"
           />

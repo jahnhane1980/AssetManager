@@ -1,12 +1,13 @@
 // utils/ImagePickerHelper.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Neu: Hybrid-Lösung. iOS nutzt ImagePicker, Android nutzt DocumentPicker.
-// Update: Nutzung der Legacy-API für Expo FileSystem (Kompatibilität mit SDK 54).
+// Neu: Nutzung von 'exifr' um das originale Aufnahmedatum (Android Cache-Problem) zu retten.
+// Update: Fallback auf Datei-Datum, falls kein EXIF vorhanden ist.
 
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Alert, Linking, Platform } from 'react-native';
+import exifr from 'exifr';
 
 class ImagePickerHelper {
   /**
@@ -17,7 +18,7 @@ class ImagePickerHelper {
   static async pickImageFromLibrary() {
     if (Platform.OS === 'android') {
       // ==========================================
-      // ANDROID LOGIK: DocumentPicker
+      // ANDROID LOGIK: DocumentPicker + exifr
       // ==========================================
       try {
         const result = await DocumentPicker.getDocumentAsync({
@@ -33,17 +34,34 @@ class ImagePickerHelper {
         let timestamp = null;
         let base64Data = null;
 
-        // 1. Datei-Infos auslesen (für den Timestamp)
-        const fileInfo = await FileSystem.getInfoAsync(asset.uri);
-        if (fileInfo.exists && fileInfo.modificationTime) {
-          // modificationTime ist in Sekunden, wir brauchen Millisekunden
-          timestamp = fileInfo.modificationTime * 1000;
-        }
-
-        // 2. Base64-String generieren (Da DocumentPicker das nicht automatisch macht)
+        // 1. Base64-String generieren
         base64Data = await FileSystem.readAsStringAsync(asset.uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
+
+        // 2. Echtes Aufnahmedatum via exifr auslesen (löst das Cache-Kopier-Problem)
+        try {
+          // exifr kann in React Native direkt mit der lokalen file:// URI arbeiten
+          const exifData = await exifr.parse(asset.uri, { pick: ['DateTimeOriginal'] });
+          
+          if (exifData && exifData.DateTimeOriginal) {
+            const parsedDate = new Date(exifData.DateTimeOriginal);
+            if (!isNaN(parsedDate.getTime())) {
+              timestamp = parsedDate.getTime();
+            }
+          }
+        } catch (exifError) {
+          console.log("EXIF-Info: Keine Daten gefunden oder Fehler beim Lesen.", exifError);
+        }
+
+        // 3. Fallback: Falls kein EXIF vorhanden (z.B. Screenshots), Cache-Datum nutzen
+        if (!timestamp) {
+          const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+          if (fileInfo.exists && fileInfo.modificationTime) {
+            // modificationTime ist in Sekunden, wir brauchen Millisekunden
+            timestamp = fileInfo.modificationTime * 1000;
+          }
+        }
 
         return {
           uri: asset.uri,

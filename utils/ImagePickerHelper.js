@@ -1,88 +1,131 @@
 // utils/ImagePickerHelper.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Neu: Verbessertes Berechtigungs-Handling (Handling von Limited Access)
-// Update: EXIF-Daten (Datum) werden ausgelesen
-// Fix: Deprecation Warnung für MediaTypeOptions behoben
+// Neu: Hybrid-Lösung. iOS nutzt ImagePicker, Android nutzt DocumentPicker.
+// Update: Fallback für Base64 und Timestamp via FileSystem für Android.
 
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, Linking } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { Alert, Linking, Platform } from 'react-native';
 
 class ImagePickerHelper {
   /**
-   * Fordert Berechtigungen an und öffnet die Galerie.
-   * Berücksichtigt nun auch den "Partial Media Access" (Limited).
+   * Fordert Berechtigungen an und öffnet die Galerie bzw. den Dateimanager.
+   * Berücksichtigt Plattform-Unterschiede (Android: DocumentPicker, iOS: ImagePicker).
    * @returns {Promise<{uri: string, base64: string, timestamp: number | null} | null>} Bilddaten oder null bei Abbruch.
    */
   static async pickImageFromLibrary() {
-    // 1. Aktuellen Status prüfen
-    const permissionResponse = await ImagePicker.getMediaLibraryPermissionsAsync();
-    let { status, canAskAgain } = permissionResponse;
+    if (Platform.OS === 'android') {
+      // ==========================================
+      // ANDROID LOGIK: DocumentPicker
+      // ==========================================
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: 'image/*',
+          copyToCacheDirectory: true,
+        });
 
-    // 2. Falls noch nicht gefragt wurde oder Zugriff verweigert ist, neu anfordern
-    if (status === 'undetermined' || (status === 'denied' && canAskAgain)) {
-      const request = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      status = request.status;
-    }
+        if (result.canceled) {
+          return null;
+        }
 
-    // 3. Handling der verschiedenen Status-Ergebnisse
-    if (status === 'denied') {
-      Alert.alert(
-        "Berechtigung benötigt",
-        "Der Zugriff auf die Galerie wurde verweigert. Bitte aktiviere ihn in den Einstellungen, um Bilder hochzuladen.",
-        [
-          { text: "Abbrechen", style: "cancel" },
-          { text: "Einstellungen", onPress: () => Linking.openSettings() }
-        ]
-      );
-      return null;
-    }
+        const asset = result.assets[0];
+        let timestamp = null;
+        let base64Data = null;
 
-    if (status === 'limited') {
-      // Hinweis, dass nur ausgewählte Bilder sichtbar sind (Partial Media Access)
-      Alert.alert(
-        "Eingeschränkter Zugriff",
-        "Du hast der App nur Zugriff auf ausgewählte Bilder gewährt. Möchtest du alle Bilder und Ordner sehen, musst du in den Einstellungen den 'Vollen Zugriff' erlauben.",
-        [
-          { text: "OK", style: "default" },
-          { text: "Einstellungen", onPress: () => Linking.openSettings() }
-        ]
-      );
-      // Wir fahren trotzdem fort, der Picker zeigt dann nur die Auswahl an
-    }
+        // 1. Datei-Infos auslesen (für den Timestamp)
+        const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+        if (fileInfo.exists && fileInfo.modificationTime) {
+          // modificationTime ist in Sekunden, wir brauchen Millisekunden
+          timestamp = fileInfo.modificationTime * 1000;
+        }
 
-    // Fix: Verwende das neue Array-Format statt des veralteten MediaTypeOptions
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'], 
-      quality: 0.7,
-      base64: true,
-      exif: true, // EXIF-Daten anfordern, um das Datum zu bekommen
-    });
+        // 2. Base64-String generieren (Da DocumentPicker das nicht automatisch macht)
+        base64Data = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
 
-    if (result.canceled) {
-      return null;
-    }
-
-    const asset = result.assets[0];
-    let timestamp = null;
-
-    // Versuchen, das Aufnahmedatum aus den EXIF-Daten zu extrahieren
-    if (asset.exif && asset.exif.DateTimeOriginal) {
-      // EXIF-Datum hat oft das Format "YYYY:MM:DD HH:MM:SS"
-      const dateString = asset.exif.DateTimeOriginal;
-      // Ersetze die ersten zwei Doppelpunkte durch Bindestriche für kompatibles Date-Parsing
-      const formattedDateString = dateString.replace(":", "-").replace(":", "-");
-      const parsedDate = new Date(formattedDateString);
-      
-      if (!isNaN(parsedDate.getTime())) {
-        timestamp = parsedDate.getTime();
+        return {
+          uri: asset.uri,
+          base64: base64Data,
+          timestamp: timestamp
+        };
+      } catch (error) {
+        console.error("Fehler beim DocumentPicker:", error);
+        return null;
       }
-    }
 
-    return {
-      uri: asset.uri,
-      base64: asset.base64,
-      timestamp: timestamp // Den extrahierten Timestamp mit zurückgeben
-    };
+    } else {
+      // ==========================================
+      // IOS LOGIK: ImagePicker (mit Berechtigungs-Handling)
+      // ==========================================
+      
+      // 1. Aktuellen Status prüfen
+      const permissionResponse = await ImagePicker.getMediaLibraryPermissionsAsync();
+      let { status, canAskAgain } = permissionResponse;
+
+      // 2. Falls noch nicht gefragt wurde oder Zugriff verweigert ist, neu anfordern
+      if (status === 'undetermined' || (status === 'denied' && canAskAgain)) {
+        const request = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        status = request.status;
+      }
+
+      // 3. Handling der verschiedenen Status-Ergebnisse
+      if (status === 'denied') {
+        Alert.alert(
+          "Berechtigung benötigt",
+          "Der Zugriff auf die Galerie wurde verweigert. Bitte aktiviere ihn in den Einstellungen, um Bilder hochzuladen.",
+          [
+            { text: "Abbrechen", style: "cancel" },
+            { text: "Einstellungen", onPress: () => Linking.openSettings() }
+          ]
+        );
+        return null;
+      }
+
+      if (status === 'limited') {
+        // Hinweis, dass nur ausgewählte Bilder sichtbar sind (Partial Media Access)
+        Alert.alert(
+          "Eingeschränkter Zugriff",
+          "Du hast der App nur Zugriff auf ausgewählte Bilder gewährt. Möchtest du alle Bilder und Ordner sehen, musst du in den Einstellungen den 'Vollen Zugriff' erlauben.",
+          [
+            { text: "OK", style: "default" },
+            { text: "Einstellungen", onPress: () => Linking.openSettings() }
+          ]
+        );
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], 
+        quality: 0.7,
+        base64: true,
+        exif: true,
+      });
+
+      if (result.canceled) {
+        return null;
+      }
+
+      const asset = result.assets[0];
+      let timestamp = null;
+
+      // Versuchen, das Aufnahmedatum aus den EXIF-Daten zu extrahieren
+      if (asset.exif && asset.exif.DateTimeOriginal) {
+        const dateString = asset.exif.DateTimeOriginal;
+        const formattedDateString = dateString.replace(":", "-").replace(":", "-");
+        const parsedDate = new Date(formattedDateString);
+        
+        if (!isNaN(parsedDate.getTime())) {
+          timestamp = parsedDate.getTime();
+        }
+      }
+
+      return {
+        uri: asset.uri,
+        base64: asset.base64,
+        timestamp: timestamp
+      };
+    }
   }
 }
 

@@ -1,86 +1,62 @@
 // components/BackupScreen.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Refactoring: Integration von PrimaryButton (inkl. Google und Outline Varianten)
+// Refactoring: Integration von PrimaryButton UND sicherer Backup-Logik ausgelagert in Hooks/Services
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  TouchableOpacity,
   ActivityIndicator,
-  Platform,
   ScrollView,
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Theme } from './Theme';
-import GoogleDriveService from '../services/GoogleDriveService';
-import AssetRepository from '../repositories/AssetRepository';
 import ScreenHeader from './ScreenHeader';
-import PrimaryButton from './PrimaryButton'; // Neu importiert
+import PrimaryButton from './PrimaryButton';
+import BackupManager from '../services/BackupManager';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 
-export default function BackupScreen({ navigation, route }) {
-  const [isDriveReady, setIsDriveReady] = useState(false);
+export default function BackupScreen({ navigation }) {
+  const { token, isAuthenticated, login, isReady } = useGoogleAuth();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [userInfo, setUserInfo] = useState(null);
+  const [backups, setBackups] = useState([]);
+
+  // Lädt die Liste der Backups, sobald wir eingeloggt sind
+  const loadBackups = useCallback(async () => {
+    if (!token) return;
+    try {
+      const files = await BackupManager.getAvailableBackups(token);
+      setBackups(files);
+    } catch (error) {
+      global.notify("Fehler beim Laden der Backups", "error");
+    }
+  }, [token]);
 
   useEffect(() => {
-    initDrive();
-  }, []);
-
-  const initDrive = async () => {
-    try {
-      const user = await GoogleDriveService.init();
-      if (user) {
-        setUserInfo(user);
-        setIsDriveReady(true);
-      }
-    } catch (error) {
-      console.log("Drive Init Fehler (BackupScreen):", error);
+    if (isAuthenticated) {
+      loadBackups();
     }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setIsProcessing(true);
-    try {
-      const user = await GoogleDriveService.signIn();
-      if (user) {
-        setUserInfo(user);
-        setIsDriveReady(true);
-        global.notify("Google Drive verbunden", "success");
-      }
-    } catch (error) {
-      global.notify("Login fehlgeschlagen", "error");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  }, [isAuthenticated, loadBackups]);
 
   const handleBackup = async () => {
-    if (!isDriveReady) return;
     setIsProcessing(true);
     try {
-      const data = await AssetRepository.getRawData();
-      const success = await GoogleDriveService.uploadBackup(data);
-      if (success) {
-        global.notify("Backup erfolgreich erstellt", "success");
-      } else {
-        throw new Error("Upload fehlgeschlagen");
-      }
+      await BackupManager.createBackup(token);
+      global.notify("Backup erfolgreich erstellt", "success");
+      await loadBackups(); // Liste aktualisieren
     } catch (error) {
-      global.notify("Backup-Fehler", "error");
+      Alert.alert("Fehler", error.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleRestore = async () => {
-    if (!isDriveReady) return;
-
+  const handleRestore = (file) => {
     Alert.alert(
       "Daten wiederherstellen",
-      "Alle lokalen Daten werden durch das Backup ersetzt. Fortfahren?",
+      `Möchtest du das Backup vom ${new Date(file.createdTime).toLocaleString()} wirklich einspielen? Alle aktuellen lokalen Daten werden überschrieben.`,
       [
         { text: "Abbrechen", style: "cancel" },
         {
@@ -88,16 +64,11 @@ export default function BackupScreen({ navigation, route }) {
           onPress: async () => {
             setIsProcessing(true);
             try {
-              const backupData = await GoogleDriveService.downloadBackup();
-              if (backupData) {
-                await AssetRepository.restoreData(backupData);
-                global.notify("Daten erfolgreich wiederhergestellt", "success");
-                setTimeout(() => navigation.goBack(), 1500);
-              } else {
-                global.notify("Kein Backup gefunden", "info");
-              }
+              await BackupManager.restoreBackup(token, file.id);
+              global.notify("Daten erfolgreich wiederhergestellt", "success");
+              setTimeout(() => navigation.goBack(), 1500);
             } catch (error) {
-              global.notify("Restore-Fehler", "error");
+              Alert.alert("Fehler", error.message);
             } finally {
               setIsProcessing(false);
             }
@@ -106,6 +77,9 @@ export default function BackupScreen({ navigation, route }) {
       ]
     );
   };
+
+  // Wenn Backups da sind, nimm für den schnellen Restore-Button einfach das neueste
+  const latestBackup = backups.length > 0 ? backups[0] : null;
 
   return (
     <View style={styles.container}>
@@ -119,23 +93,23 @@ export default function BackupScreen({ navigation, route }) {
           <Ionicons name="cloud-done-outline" size={40} color={Theme.colors.primary} style={styles.mainIcon} />
           <Text style={styles.cardTitle}>Cloud Synchronisierung</Text>
           <Text style={styles.cardText}>
-            Sichere deine Vermögensdaten verschlüsselt in deinem Google Drive. 
+            Sichere deine Vermögensdaten in deinem Google Drive. 
             So kannst du sie bei einem Handywechsel einfach wiederherstellen.
           </Text>
         </View>
 
-        {!isDriveReady ? (
+        {!isAuthenticated ? (
           <PrimaryButton
             title="Mit Google verbinden"
             icon="logo-google"
             variant="google"
-            onPress={handleGoogleSignIn}
-            disabled={isProcessing}
+            onPress={login}
+            disabled={!isReady || isProcessing}
           />
         ) : (
           <View style={styles.accountInfo}>
-            <Text style={styles.accountLabel}>Verbunden als:</Text>
-            <Text style={styles.accountEmail}>{userInfo?.email || "Google Konto"}</Text>
+            <Text style={styles.accountLabel}>Status:</Text>
+            <Text style={styles.accountEmail}>Mit Google Drive verbunden</Text>
           </View>
         )}
 
@@ -145,15 +119,15 @@ export default function BackupScreen({ navigation, route }) {
             icon="cloud-upload-outline"
             variant="primary"
             onPress={handleBackup}
-            disabled={!isDriveReady || isProcessing}
+            disabled={!isAuthenticated || isProcessing}
           />
 
           <PrimaryButton
-            title="Backup einspielen"
+            title={latestBackup ? `Neuestes Backup einspielen` : "Kein Backup vorhanden"}
             icon="cloud-download-outline"
             variant="outline"
-            onPress={handleRestore}
-            disabled={!isDriveReady || isProcessing}
+            onPress={() => latestBackup && handleRestore(latestBackup)}
+            disabled={!isAuthenticated || isProcessing || !latestBackup}
           />
         </View>
 

@@ -1,13 +1,13 @@
 // utils/ImagePickerHelper.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
-// Neu: Nutzung von 'exifr' um das originale Aufnahmedatum (Android Cache-Problem) zu retten.
-// Update: Fallback auf Datei-Datum, falls kein EXIF vorhanden ist.
+// Neu: piexifjs integriert, um das innere EXIF-Datum sicher aus dem Base64-String zu extrahieren.
+// Update: copyToCacheDirectory wieder auf true, da es für Base64 nötig und sicher ist.
 
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Alert, Linking, Platform } from 'react-native';
-import exifr from 'exifr';
+import piexif from 'piexifjs';
 
 class ImagePickerHelper {
   /**
@@ -18,12 +18,14 @@ class ImagePickerHelper {
   static async pickImageFromLibrary() {
     if (Platform.OS === 'android') {
       // ==========================================
-      // ANDROID LOGIK: DocumentPicker + exifr
+      // ANDROID LOGIK: DocumentPicker + piexifjs
       // ==========================================
       try {
         const result = await DocumentPicker.getDocumentAsync({
           type: 'image/*',
-          copyToCacheDirectory: true,
+          // Wir MÜSSEN kopieren, um die Datei sicher in Base64 umwandeln zu können.
+          // Das äußere Dateidatum wird dadurch überschrieben, aber wir lesen jetzt das Innere!
+          copyToCacheDirectory: true, 
         });
 
         if (result.canceled) {
@@ -34,31 +36,37 @@ class ImagePickerHelper {
         let timestamp = null;
         let base64Data = null;
 
-        // 1. Base64-String generieren
+        // 1. Base64-String sicher aus dem Cache generieren (ist jetzt eine file:// URI)
         base64Data = await FileSystem.readAsStringAsync(asset.uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        // 2. Echtes Aufnahmedatum via exifr auslesen (löst das Cache-Kopier-Problem)
+        // 2. EXIF-Daten rein aus dem Text-String extrahieren (ohne natives Dateisystem!)
         try {
-          // exifr kann in React Native direkt mit der lokalen file:// URI arbeiten
-          const exifData = await exifr.parse(asset.uri, { pick: ['DateTimeOriginal'] });
-          
-          if (exifData && exifData.DateTimeOriginal) {
-            const parsedDate = new Date(exifData.DateTimeOriginal);
+          const dataUrl = `data:${asset.mimeType || 'image/jpeg'};base64,${base64Data}`;
+          const exifObj = piexif.load(dataUrl);
+
+          // piexif speichert das Datum im ExifIFD Block unter dem Tag DateTimeOriginal
+          if (exifObj && exifObj["Exif"] && exifObj["Exif"][piexif.ExifIFD.DateTimeOriginal]) {
+            // Das Format aus der Kamera ist meistens: "2026:04:11 12:00:00"
+            const dateString = exifObj["Exif"][piexif.ExifIFD.DateTimeOriginal];
+            const formattedDateString = dateString.replace(":", "-").replace(":", "-");
+            const parsedDate = new Date(formattedDateString);
+            
             if (!isNaN(parsedDate.getTime())) {
               timestamp = parsedDate.getTime();
             }
           }
         } catch (exifError) {
-          console.log("EXIF-Info: Keine Daten gefunden oder Fehler beim Lesen.", exifError);
+          // Passiert still im Hintergrund, z.B. wenn das Bild kein JPEG ist oder keine EXIF hat
+          console.log("Hinweis: Keine EXIF-Daten im Base64-String gefunden.");
         }
 
-        // 3. Fallback: Falls kein EXIF vorhanden (z.B. Screenshots), Cache-Datum nutzen
+        // 3. Fallback: Datei-Alter der Cache-Kopie (ist in den meisten Fällen das heutige Datum, 
+        // greift nur bei Screenshots, WhatsApp-Bildern etc., die gar kein EXIF besitzen)
         if (!timestamp) {
           const fileInfo = await FileSystem.getInfoAsync(asset.uri);
           if (fileInfo.exists && fileInfo.modificationTime) {
-            // modificationTime ist in Sekunden, wir brauchen Millisekunden
             timestamp = fileInfo.modificationTime * 1000;
           }
         }

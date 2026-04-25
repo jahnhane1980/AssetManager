@@ -1,11 +1,11 @@
 // utils/ImagePickerHelper.js
 // Modus: Code-Buddy | Regel 6: Full-Body | Regel 7: Prettify
 // Neu: Hybrid-Lösung. iOS nutzt ImagePicker, Android nutzt DocumentPicker.
-// Update: Fallback für Base64 und Timestamp via FileSystem für Android.
+// Update: Nutzung der Legacy-API für Expo FileSystem (Kompatibilität mit SDK 54).
 
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Alert, Linking, Platform } from 'react-native';
 
 class ImagePickerHelper {
